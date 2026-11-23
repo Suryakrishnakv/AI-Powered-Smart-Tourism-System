@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}About | Kerala Smart Tourism System{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <span class="text-success fw-bold text-uppercase small">Project Architecture</span>
+                <h1 class="font-heading fw-bold mt-2 mb-4">About Kerala Smart Tourism System</h1>
+                
+                <div class="p-4 bg-white rounded-4 border mb-4">
+                    <h4 class="fw-bold mb-3">Project Overview</h4>
+                    <p class="text-muted">
+                        This system is an intelligent travel and destination management platform exclusively built for Kerala, India. It combines modern web technologies (Django, PostgreSQL, Bootstrap 5) with data analytics (Pandas, NumPy, Scikit-learn) and interactive geospatial mapping (Leaflet, OpenStreetMap) to provide tourists with an end-to-end trip planning and recommendation solution.
+                    </p>
+                </div>
+
+                <div class="p-4 bg-white rounded-4 border mb-4">
+                    <h4 class="fw-bold mb-3">Technology Stack</h4>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <strong>Backend:</strong> Python Django & PostgreSQL
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <strong>Frontend:</strong> HTML5, CSS3, JavaScript, Bootstrap 5
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <strong>Mapping:</strong> Leaflet, OpenStreetMap & Geolocation
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <strong>Analytics:</strong> Scikit-learn, Pandas, Chart.js
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="{% url 'core:home' %}" class="btn btn-kerala-primary">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

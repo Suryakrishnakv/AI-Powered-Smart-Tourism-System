@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}Tourist Dashboard | Kerala Smart Tourism{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-2">
+        <!-- Welcome Banner -->
+        <div class="p-4 p-md-5 rounded-4 text-white mb-4 shadow-sm" style="background: linear-gradient(135deg, #074732 0%, #0b6e4f 100%);">
+            <div class="row align-items-center g-3">
+                <div class="col-lg-8">
+                    <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-semibold mb-2">
+                        <i class="bi bi-patch-check-fill me-1"></i>Verified Tourist Account
+                    </span>
+                    <h1 class="font-heading fw-bold display-6 mb-2">
+                        Welcome, {{ user.get_full_name|default:user.username }}!
+                    </h1>
+                    <p class="mb-0 text-white-50">
+                        Ready to experience Kerala? Discover handpicked hill stations, pristine backwaters, and cultural landmarks across all 14 districts.
+                    </p>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <a href="{% url 'accounts:logout' %}" class="btn btn-outline-light px-3 py-2">
+                        <i class="bi bi-box-arrow-right me-1"></i>Log Out
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Action Cards (Placeholders for upcoming phases) -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="p-4 bg-white rounded-4 border h-100 shadow-sm d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-inline-flex p-3 rounded-3 bg-success-subtle text-success fs-3 mb-3">
+                            <i class="bi bi-compass"></i>
+                        </div>
+                        <h5 class="fw-bold mb-2">Explore Kerala</h5>
+                        <p class="text-muted small mb-3">
+                            Browse curated destinations across Hill Stations, Beaches, Backwaters, and Wildlife Sanctuaries.
+                        </p>
+                    </div>
+                    <a href="{% url 'core:home' %}#districts" class="btn btn-kerala-outline btn-sm w-100">
+                        <i class="bi bi-map me-1"></i>Explore Destinations
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="p-4 bg-white rounded-4 border h-100 shadow-sm d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-inline-flex p-3 rounded-3 bg-warning-subtle text-warning-emphasis fs-3 mb-3">
+                            <i class="bi bi-calendar-check"></i>
+                        </div>
+                        <h5 class="fw-bold mb-2">Plan Your Trip</h5>
+                        <p class="text-muted small mb-3">
+                            Generate customized day-wise itineraries, calculate accurate expenses, and view verified transportation.
+                        </p>
+                    </div>
+                    <button class="btn btn-kerala-primary btn-sm w-100" onclick="alert('Trip Planning Module will be unlocked in Phase 8!');">
+                        <i class="bi bi-lightning-charge me-1"></i>Create New Trip
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="p-4 bg-white rounded-4 border h-100 shadow-sm d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-inline-flex p-3 rounded-3 bg-info-subtle text-info-emphasis fs-3 mb-3">
+                            <i class="bi bi-geo-alt"></i>
+                        </div>
+                        <h5 class="fw-bold mb-2">GPS Nearby Discovery</h5>
+                        <p class="text-muted small mb-3">
+                            Find nearby attractions, viewpoints, authentic restaurants, and facilities using live browser geolocation.
+                        </p>
+                    </div>
+                    <button class="btn btn-kerala-outline btn-sm w-100" onclick="alert('GPS Nearby Module will be unlocked in Phase 7!');">
+                        <i class="bi bi-crosshair me-1"></i>Nearby Attractions
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tourist Profile & My Trips Section -->
+        <div class="row g-4">
+            <!-- Profile Details Card -->
+            <div class="col-lg-5">
+                <div class="p-4 bg-white rounded-4 border shadow-sm">
+                    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+                        <h5 class="font-heading fw-bold mb-0">Tourist Profile</h5>
+                        <span class="badge bg-success-subtle text-success">Active</span>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center fs-3 fw-bold" style="width: 64px; height: 64px;">
+                            {{ user.first_name|default:user.username|make_list|first|upper }}
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h6>
+                            <p class="text-muted small mb-0">@{{ user.username }}</p>
+                        </div>
+                    </div>
+
+                    <ul class="list-group list-group-flush small">
+                        <li class="list-group-item px-0 d-flex justify-content-between">
+                            <span class="text-secondary"><i class="bi bi-envelope me-2 text-success"></i>Email Address</span>
+                            <span class="fw-semibold text-dark">{{ user.email|default:"Not specified" }}</span>
+                        </li>
+                        <li class="list-group-item px-0 d-flex justify-content-between">
+                            <span class="text-secondary"><i class="bi bi-telephone me-2 text-success"></i>Phone Number</span>
+                            <span class="fw-semibold text-dark">{{ profile.phone_number|default:"Not provided" }}</span>
+                        </li>
+                        <li class="list-group-item px-0 d-flex justify-content-between">
+                            <span class="text-secondary"><i class="bi bi-geo me-2 text-success"></i>Preferred District</span>
+                            <span class="fw-semibold text-dark">{{ profile.district|default:"All 14 Districts" }}</span>
+                        </li>
+                        <li class="list-group-item px-0 d-flex justify-content-between">
+                            <span class="text-secondary"><i class="bi bi-calendar3 me-2 text-success"></i>Member Since</span>
+                            <span class="fw-semibold text-dark">{{ user.date_joined|date:"M d, Y" }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- My Trips Section (Placeholder) -->
+            <div class="col-lg-7">
+                <div class="p-4 bg-white rounded-4 border shadow-sm h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+                        <h5 class="font-heading fw-bold mb-0">My Trips</h5>
+                        <span class="badge bg-secondary-subtle text-secondary">0 Saved Trips</span>
+                    </div>
+
+                    <div class="text-center py-5">
+                        <div class="d-inline-flex p-4 rounded-circle bg-light text-secondary mb-3 fs-1">
+                            <i class="bi bi-backpack"></i>
+                        </div>
+                        <h6 class="fw-bold text-dark mb-1">No Planned Trips Yet</h6>
+                        <p class="text-muted small mb-4" style="max-width: 360px; margin: 0 auto;">
+                            Once you plan your Kerala trips with the intelligent itinerary builder, your day-wise schedules and expenses will appear here.
+                        </p>
+                        <button class="btn btn-kerala-primary btn-sm px-4" onclick="alert('Trip planning functionality will be unlocked in Phase 8!');">
+                            <i class="bi bi-plus-circle me-1"></i>Start Your First Plan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

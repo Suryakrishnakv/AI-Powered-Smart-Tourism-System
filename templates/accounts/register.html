@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Tourist Registration | Kerala Smart Tourism{% endblock %}
+
+{% block content %}
+<section class="py-5" style="background: linear-gradient(180deg, #f0fdf4 0%, #f7faf8 100%); min-height: 85vh;">
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="p-4 p-md-5 text-white" style="background: linear-gradient(135deg, #074732 0%, #0b6e4f 100%);">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-person-plus-fill fs-3 text-warning"></i>
+                            <span class="text-uppercase small tracking-wide fw-bold text-warning">Tourist Portal</span>
+                        </div>
+                        <h2 class="font-heading fw-bold mb-1">Create Your Account</h2>
+                        <p class="mb-0 text-white-50 small">
+                            Join Kerala Smart Tourism to get AI recommendations, day-wise itineraries & travel budgets across all 14 districts.
+                        </p>
+                    </div>
+
+                    <div class="card-body p-4 p-md-5 bg-white">
+                        <form method="post" action="{% url 'accounts:register' %}" novalidate>
+                            {% csrf_token %}
+
+                            <!-- Full Name -->
+                            <div class="mb-3">
+                                <label for="reg_full_name" class="form-label fw-semibold text-secondary small">
+                                    <i class="bi bi-person me-1"></i>Full Name <span class="text-danger">*</span>
+                                </label>
+                                {{ form.full_name }}
+                                {% if form.full_name.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ form.full_name.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Username & Email Grid -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label for="reg_username" class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-at me-1"></i>Username <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.username }}
+                                    {% if form.username.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.username.errors|striptags }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="reg_email" class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-envelope me-1"></i>Email Address <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.email }}
+                                    {% if form.email.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.email.errors|striptags }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Phone Number -->
+                            <div class="mb-3">
+                                <label for="reg_phone" class="form-label fw-semibold text-secondary small">
+                                    <i class="bi bi-telephone me-1"></i>Phone Number <span class="text-danger">*</span>
+                                </label>
+                                {{ form.phone_number }}
+                                {% if form.phone_number.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ form.phone_number.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Password & Confirm Password Grid -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label for="reg_password" class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-lock me-1"></i>Password <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.password }}
+                                    {% if form.password.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.password.errors|striptags }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="reg_confirm_password" class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-shield-check me-1"></i>Confirm Password <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.confirm_password }}
+                                    {% if form.confirm_password.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ form.confirm_password.errors|striptags }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="d-grid mb-4">
+                                <button type="submit" class="btn btn-kerala-primary py-2 fw-semibold fs-6">
+                                    <i class="bi bi-check-circle me-1"></i>Register as Tourist
+                                </button>
+                            </div>
+
+                            <!-- Login Link -->
+                            <div class="text-center text-muted small">
+                                Already have a tourist account? 
+                                <a href="{% url 'accounts:login' %}" class="text-success fw-bold text-decoration-none">
+                                    Log In Here
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
