@@ -86,7 +86,7 @@ def profile_edit_view(request):
     profile, _ = TouristProfile.objects.get_or_create(user=request.user)
 
     if request.method == 'POST':
-        form = TouristProfileEditForm(request.POST)
+        form = TouristProfileEditForm(request.POST, request.FILES)
         if form.is_valid():
             cleaned = form.cleaned_data
             # Update User fields
@@ -101,6 +101,8 @@ def profile_edit_view(request):
             profile.location_address = cleaned.get('location_address', '')
             profile.latitude = cleaned.get('latitude')
             profile.longitude = cleaned.get('longitude')
+            if 'profile_image' in request.FILES:
+                profile.profile_image = request.FILES['profile_image']
             profile.save()
 
             messages.success(request, "Your profile and GPS location settings have been updated successfully!")

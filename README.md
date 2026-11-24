@@ -73,7 +73,10 @@ An intelligent tourism web platform exclusively crafted for **Kerala, India ("Go
   - Reverse geocoding via OpenStreetMap Nominatim with respectful error handling.
   - Clear/reset location control.
 - **Server-Side Coordinate Validation:** Strict validation of latitude (-90° to +90°) and longitude (-180° to +180°) ranges on Django server before database persistence.
-- **Tourist Dashboard Enhancements:** Displays live coordinates badge, landmark name, and interactive mini Leaflet preview map.
+- **Tourist Dashboard & Navbar Enhancements:** Displays live coordinates badge, landmark name, interactive mini Leaflet preview map, custom profile avatar, and responsive authenticated dropdown menu.
+- **Profile Photo Upload:** Added support for profile image uploads with 5MB validation, displayed across dashboard and navigation bar.
+- **Comprehensive Automated Tests (`accounts/tests.py`):**
+  - 17 automated unit tests covering tourist registration, dual-login, dashboard protection, GPS saving & updating, coordinate boundary validation, profile image upload, and data preservation. All 17 tests passing.
 
 ---
 

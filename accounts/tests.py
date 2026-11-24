@@ -279,3 +279,30 @@ class TouristAuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
         expected = f"{self.login_url}?next={self.profile_edit_url}"
         self.assertRedirects(response, expected)
+
+    def test_17_profile_avatar_upload(self):
+        """17. Test uploading a profile avatar photograph."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04'
+            b'\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44'
+            b'\x01\x00\x3b'
+        )
+        avatar = SimpleUploadedFile('avatar.gif', small_gif, content_type='image/gif')
+
+        payload = {
+            'first_name': 'Anandhu',
+            'last_name': 'Kumar',
+            'phone_number': '+91 9847123456',
+            'district': 'Alappuzha',
+            'profile_image': avatar,
+        }
+        response = self.client.post(self.profile_edit_url, payload, follow=True)
+        self.assertEqual(response.status_code, 200)
+
+        profile = TouristProfile.objects.get(user__username='anandhu')
+        self.assertTrue(bool(profile.profile_image))
+        self.assertIn('avatar', profile.profile_image.name)

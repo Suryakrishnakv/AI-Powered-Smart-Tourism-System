@@ -223,6 +223,15 @@ class TouristProfileEditForm(forms.Form):
             'id': 'profile_address'
         })
     )
+    profile_image = forms.ImageField(
+        required=False,
+        label="Profile Avatar / Photograph",
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'id': 'profile_image',
+            'accept': 'image/*'
+        })
+    )
     location_address = forms.CharField(
         max_length=255,
         required=False,
@@ -257,6 +266,13 @@ class TouristProfileEditForm(forms.Form):
             'id': 'profile_longitude'
         })
     )
+
+    def clean_profile_image(self):
+        img = self.cleaned_data.get('profile_image')
+        if img:
+            if img.size > 5 * 1024 * 1024:
+                raise ValidationError("Profile photo size cannot exceed 5 MB.")
+        return img
 
     def clean_latitude(self):
         lat = self.cleaned_data.get('latitude')
