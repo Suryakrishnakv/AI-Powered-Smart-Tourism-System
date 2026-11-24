@@ -250,6 +250,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ map_markers|json_script:"map-markers-data" }}
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -264,14 +265,27 @@ document.addEventListener('DOMContentLoaded', function () {
         scrollWheelZoom: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // Tile Layers: CARTO Voyager (primary) and ESRI World Street Map (alternative)
+    const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
         subdomains: 'abcd',
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>'
     }).addTo(map);
 
-    // Marker Data rendered from Django backend
-    const markersData = {{ map_markers|safe }};
+    const esriStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+    });
+
+    const baseMaps = {
+        "Voyager (Clean)": cartoVoyager,
+        "Satellite/Street (Esri)": esriStreet
+    };
+    L.control.layers(baseMaps).addTo(map);
+
+    // Marker Data safely parsed via json_script
+    const dataElement = document.getElementById('map-markers-data');
+    const markersData = dataElement ? JSON.parse(dataElement.textContent) : [];
     const bounds = L.latLngBounds();
 
     markersData.forEach(function (item) {
@@ -281,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const popupContent = `
                 <div style="max-width: 220px; font-family: 'Plus Jakarta Sans', sans-serif;">
-                    <img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;">
+                    <img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.src='/static/images/hero-bg.jpg';">
                     <span style="font-size: 0.75rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${item.category}</span>
                     <h6 style="margin: 6px 0 2px 0; font-weight: 700;">${item.name}</h6>
                     <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;"><i class="bi bi-geo-alt text-danger me-1"></i>${item.locality}</p>
@@ -292,9 +306,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    if (markersData.length > 0) {
+    if (markersData.length > 0 && bounds.isValid()) {
         map.fitBounds(bounds, { padding: [30, 30] });
     }
+
+    // Force map to compute exact container dimensions
+    setTimeout(function () {
+        map.invalidateSize();
+    }, 250);
 });
 </script>
 {% endblock %}
