@@ -30,6 +30,19 @@ An intelligent tourism web platform exclusively crafted for **Kerala, India ("Go
 
 ---
 
+## 🛡️ Global Project Policy: Real & Verified Data Only
+
+This project strictly enforces data integrity across all 14 districts of Kerala:
+- **Zero Fabricated Data:** Hotel names, room prices, transit schedules, fares, attraction timings, and GPS coordinates must originate from official sources (Department of Tourism, DTPC, KSRTC, Indian Railways, KTDC, OpenStreetMap).
+- **Demo Data Transparency:** Any synthetic test data must be explicitly flagged with `is_demo = True`.
+- **Traceable Verification Architecture:** All real-world tourism models inherit from `VerifiableDataModel`:
+  - `source_name` & `source_url`: Verifiable provenance documentation.
+  - `verification_status`: Strict 5-tier classification (`LIVE`, `VERIFIED`, `ESTIMATED`, `PENDING`, `EXPIRED`).
+  - `last_verified_date` & `valid_until`: Mandatory temporal validity tracking to detect stale records.
+  - `verified_by`: Administrator accountability audit.
+
+---
+
 ## 📌 Development Progress & Completed Phases
 
 ### ✅ Phase 1: Django Project Setup & PostgreSQL Integration
@@ -75,8 +88,8 @@ An intelligent tourism web platform exclusively crafted for **Kerala, India ("Go
 - **Server-Side Coordinate Validation:** Strict validation of latitude (-90° to +90°) and longitude (-180° to +180°) ranges on Django server before database persistence.
 - **Tourist Dashboard & Navbar Enhancements:** Displays live coordinates badge, landmark name, interactive mini Leaflet preview map, custom profile avatar, and responsive authenticated dropdown menu.
 - **Profile Photo Upload:** Added support for profile image uploads with 5MB validation, displayed across dashboard and navigation bar.
-- **Comprehensive Automated Tests (`accounts/tests.py`):**
-  - 17 automated unit tests covering tourist registration, dual-login, dashboard protection, GPS saving & updating, coordinate boundary validation, profile image upload, and data preservation. All 17 tests passing.
+- **Comprehensive Automated Tests (`accounts/tests.py` & `core/tests.py`):**
+  - 22 automated unit tests covering tourist registration, dual-login, dashboard protection, GPS saving & updating, coordinate boundary validation, profile image upload, data preservation, and the 5-tier data verification policy suite. All 22 tests passing.
 
 ---
 
