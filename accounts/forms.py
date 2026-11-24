@@ -171,3 +171,113 @@ class TouristLoginForm(forms.Form):
             'id': 'remember_me'
         })
     )
+
+
+class TouristProfileEditForm(forms.Form):
+    first_name = forms.CharField(
+        max_length=150,
+        required=True,
+        label="First Name",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'First Name',
+            'id': 'profile_first_name'
+        })
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        required=False,
+        label="Last Name",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Last Name',
+            'id': 'profile_last_name'
+        })
+    )
+    phone_number = forms.CharField(
+        max_length=20,
+        required=False,
+        label="Phone Number",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '+91 9876543210',
+            'id': 'profile_phone'
+        })
+    )
+    district = forms.ChoiceField(
+        choices=[('', '-- Select Preferred District --')] + TouristProfile.DISTRICT_CHOICES,
+        required=False,
+        label="Preferred Kerala District",
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'profile_district'
+        })
+    )
+    address = forms.CharField(
+        required=False,
+        label="Home / Residential Address",
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Your postal or residential address',
+            'id': 'profile_address'
+        })
+    )
+    location_address = forms.CharField(
+        max_length=255,
+        required=False,
+        label="GPS Selected Landmark / Location",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g. Fort Kochi, Kochi or Munnar Tea Garden',
+            'id': 'profile_location_address'
+        })
+    )
+    latitude = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        label="GPS Latitude",
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control font-monospace',
+            'step': '0.000001',
+            'placeholder': 'e.g. 10.850516',
+            'id': 'profile_latitude'
+        })
+    )
+    longitude = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        label="GPS Longitude",
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control font-monospace',
+            'step': '0.000001',
+            'placeholder': 'e.g. 76.271080',
+            'id': 'profile_longitude'
+        })
+    )
+
+    def clean_latitude(self):
+        lat = self.cleaned_data.get('latitude')
+        if lat is not None:
+            if lat < -90 or lat > 90:
+                raise ValidationError("Latitude must be between -90.0 and 90.0 degrees.")
+        return lat
+
+    def clean_longitude(self):
+        lng = self.cleaned_data.get('longitude')
+        if lng is not None:
+            if lng < -180 or lng > 180:
+                raise ValidationError("Longitude must be between -180.0 and 180.0 degrees.")
+        return lng
+
+    def clean(self):
+        cleaned_data = super().clean()
+        lat = cleaned_data.get('latitude')
+        lng = cleaned_data.get('longitude')
+
+        if (lat is not None and lng is None) or (lat is None and lng is not None):
+            raise ValidationError("Both latitude and longitude must be provided together, or leave both empty.")
+
+        return cleaned_data

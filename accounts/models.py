@@ -31,6 +31,12 @@ class TouristProfile(models.Model):
     profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, verbose_name="Profile Image")
     address = models.TextField(blank=True, verbose_name="Address")
     district = models.CharField(max_length=50, blank=True, choices=DISTRICT_CHOICES, verbose_name="Preferred/Home District")
+    
+    # GPS Location and Interactive Map Coordinates
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS Latitude")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS Longitude")
+    location_address = models.CharField(max_length=255, blank=True, verbose_name="GPS Location / Landmark")
+
     created_date = models.DateTimeField(auto_now_add=True, verbose_name="Created Date")
 
     class Meta:

@@ -3,8 +3,8 @@ from .models import TouristProfile
 
 @admin.register(TouristProfile)
 class TouristProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'get_full_name', 'get_email', 'phone_number', 'district', 'created_date')
-    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'user__email', 'phone_number')
+    list_display = ('user', 'get_full_name', 'get_email', 'phone_number', 'district', 'latitude', 'longitude', 'created_date')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'user__email', 'phone_number', 'location_address')
     list_filter = ('district', 'created_date')
 
     def get_full_name(self, obj):
