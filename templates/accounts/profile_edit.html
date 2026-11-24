@@ -1,0 +1,405 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Profile & GPS Location | Kerala Smart Tourism{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+    .map-container {
+        height: 420px;
+        width: 100%;
+        border-radius: 12px;
+        z-index: 1;
+        border: 2px solid #e2e8f0;
+        transition: border-color 0.2s ease;
+    }
+    .map-container:hover {
+        border-color: var(--primary-emerald);
+    }
+    .coord-badge {
+        background-color: #eafaf1;
+        border: 1px solid #c2ebd5;
+        color: var(--primary-dark);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+    .leaflet-popup-content-wrapper {
+        border-radius: 8px;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="py-5" style="background: linear-gradient(180deg, #f0fdf4 0%, #f7faf8 100%); min-height: 85vh;">
+    <div class="container py-2">
+        <!-- Header Breadcrumb / Title -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+            <div>
+                <a href="{% url 'accounts:dashboard' %}" class="text-success text-decoration-none small fw-semibold">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+                </a>
+                <h2 class="font-heading fw-bold mt-1 mb-0">Edit Profile & GPS Location</h2>
+                <p class="text-muted small mb-0">Update your contact details and set your travel base on the interactive Kerala map.</p>
+            </div>
+            <div class="mt-3 mt-md-0">
+                <a href="{% url 'accounts:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </a>
+            </div>
+        </div>
+
+        <form method="post" action="{% url 'accounts:profile_edit' %}" id="profileEditForm" novalidate>
+            {% csrf_token %}
+
+            <div class="row g-4">
+                <!-- Left Column: Personal Information -->
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm rounded-4 h-100">
+                        <div class="card-header bg-white border-bottom py-3 px-4">
+                            <h5 class="font-heading fw-bold mb-0 text-dark">
+                                <i class="bi bi-person-lines-fill me-2 text-success"></i>Personal Details
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Name Row -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-sm-6">
+                                    <label for="profile_first_name" class="form-label fw-semibold text-secondary small">
+                                        First Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.first_name }}
+                                    {% if form.first_name.errors %}
+                                        <div class="text-danger small mt-1">{{ form.first_name.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-sm-6">
+                                    <label for="profile_last_name" class="form-label fw-semibold text-secondary small">
+                                        Last Name
+                                    </label>
+                                    {{ form.last_name }}
+                                    {% if form.last_name.errors %}
+                                        <div class="text-danger small mt-1">{{ form.last_name.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Phone Number -->
+                            <div class="mb-3">
+                                <label for="profile_phone" class="form-label fw-semibold text-secondary small">
+                                    <i class="bi bi-telephone me-1"></i>Phone Number
+                                </label>
+                                {{ form.phone_number }}
+                                {% if form.phone_number.errors %}
+                                    <div class="text-danger small mt-1">{{ form.phone_number.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Preferred District -->
+                            <div class="mb-3">
+                                <label for="profile_district" class="form-label fw-semibold text-secondary small">
+                                    <i class="bi bi-pin-map me-1"></i>Preferred Kerala District
+                                </label>
+                                {{ form.district }}
+                                {% if form.district.errors %}
+                                    <div class="text-danger small mt-1">{{ form.district.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Residential Address -->
+                            <div class="mb-4">
+                                <label for="profile_address" class="form-label fw-semibold text-secondary small">
+                                    <i class="bi bi-house me-1"></i>Residential / Postal Address
+                                </label>
+                                {{ form.address }}
+                                {% if form.address.errors %}
+                                    <div class="text-danger small mt-1">{{ form.address.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-kerala-primary py-2 fw-semibold">
+                                    <i class="bi bi-check2-circle me-1"></i>Save All Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Interactive Location Picker & Map -->
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm rounded-4 h-100">
+                        <div class="card-header bg-white border-bottom py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>
+                                <h5 class="font-heading fw-bold mb-0 text-dark">
+                                    <i class="bi bi-geo-alt-fill me-2 text-danger"></i>Interactive Kerala Location Picker
+                                </h5>
+                                <span class="text-muted small">Click on the map or drag the marker to choose coordinates.</span>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btnUseGps">
+                                    <i class="bi bi-crosshair me-1"></i>Use My Current Location
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClearLocation" title="Clear coordinates">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card-body p-4">
+                            <!-- GPS Status Alert Area -->
+                            <div id="gpsAlertBox" class="alert alert-info py-2 px-3 small d-none" role="alert">
+                                <i class="bi bi-info-circle me-1" id="gpsAlertIcon"></i>
+                                <span id="gpsAlertText">Detecting location...</span>
+                            </div>
+
+                            <!-- Interactive Map Canvas -->
+                            <div id="keralaMap" class="map-container mb-3"></div>
+
+                            <!-- Coordinates & Landmark Display -->
+                            <div class="row g-3 mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-compass me-1"></i>Selected Coordinates
+                                    </label>
+                                    <div class="coord-badge d-flex justify-content-between align-items-center">
+                                        <span>Lat: <strong id="displayLat">{% if profile.latitude %}{{ profile.latitude }}{% else %}Not set{% endif %}</strong></span>
+                                        <span>Lng: <strong id="displayLng">{% if profile.longitude %}{{ profile.longitude }}{% else %}Not set{% endif %}</strong></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="profile_location_address" class="form-label fw-semibold text-secondary small">
+                                        <i class="bi bi-geo me-1"></i>Landmark / Address
+                                    </label>
+                                    {{ form.location_address }}
+                                    {% if form.location_address.errors %}
+                                        <div class="text-danger small mt-1">{{ form.location_address.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Hidden Lat/Lng Form Inputs for Server Submission -->
+                            <div class="row g-2 d-none">
+                                <div class="col-6">{{ form.latitude }}</div>
+                                <div class="col-6">{{ form.longitude }}</div>
+                            </div>
+
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger py-2 px-3 small mt-2">
+                                    {{ form.non_field_errors|striptags }}
+                                </div>
+                            {% endif %}
+
+                            {% if form.latitude.errors or form.longitude.errors %}
+                                <div class="alert alert-danger py-2 px-3 small mt-2">
+                                    {{ form.latitude.errors|striptags }} {{ form.longitude.errors|striptags }}
+                                </div>
+                            {% endif %}
+
+                            <div class="text-muted small mt-2">
+                                <i class="bi bi-shield-check text-success me-1"></i>
+                                <em>GPS coordinates are stored privately and used only for nearby attraction discovery and distance calculations.</em>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Default Kerala Coordinates (Center of Kerala)
+    const KERALA_DEFAULT_LAT = 10.850516;
+    const KERALA_DEFAULT_LNG = 76.271080;
+    const DEFAULT_ZOOM = 8;
+
+    // Elements
+    const latInput = document.getElementById('profile_latitude');
+    const lngInput = document.getElementById('profile_longitude');
+    const locAddressInput = document.getElementById('profile_location_address');
+    const displayLat = document.getElementById('displayLat');
+    const displayLng = document.getElementById('displayLng');
+    const btnUseGps = document.getElementById('btnUseGps');
+    const btnClearLocation = document.getElementById('btnClearLocation');
+    const gpsAlertBox = document.getElementById('gpsAlertBox');
+    const gpsAlertText = document.getElementById('gpsAlertText');
+
+    // Parse existing profile coordinates if available
+    let initialLat = parseFloat(latInput.value);
+    let initialLng = parseFloat(lngInput.value);
+    const hasExistingCoords = !isNaN(initialLat) && !isNaN(initialLng) && (initialLat !== 0 || initialLng !== 0);
+
+    const startLat = hasExistingCoords ? initialLat : KERALA_DEFAULT_LAT;
+    const startLng = hasExistingCoords ? initialLng : KERALA_DEFAULT_LNG;
+    const startZoom = hasExistingCoords ? 12 : DEFAULT_ZOOM;
+
+    // Initialize Leaflet Map
+    const map = L.map('keralaMap', {
+        center: [startLat, startLng],
+        zoom: startZoom,
+        zoomControl: true,
+        scrollWheelZoom: true
+    });
+
+    // OpenStreetMap Tile Layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Draggable Location Marker
+    let marker = L.marker([startLat, startLng], {
+        draggable: true,
+        title: 'Selected Tourist Location'
+    }).addTo(map);
+
+    if (hasExistingCoords) {
+        marker.bindPopup(`<strong>Your Saved Location</strong><br>Lat: ${initialLat.toFixed(5)}, Lng: ${initialLng.toFixed(5)}`).openPopup();
+    } else {
+        marker.bindPopup('<strong>Drag or click</strong> anywhere in Kerala to set your location').openPopup();
+    }
+
+    // Function to update coordinates on UI and inputs
+    function updateCoordinates(lat, lng, doReverseGeocode = true) {
+        const roundedLat = parseFloat(lat.toFixed(6));
+        const roundedLng = parseFloat(lng.toFixed(6));
+
+        latInput.value = roundedLat;
+        lngInput.value = roundedLng;
+        displayLat.textContent = roundedLat.toFixed(5);
+        displayLng.textContent = roundedLng.toFixed(5);
+
+        marker.setLatLng([lat, lng]);
+        marker.setPopupContent(`<strong>Selected Location</strong><br>Lat: ${roundedLat.toFixed(5)}, Lng: ${roundedLng.toFixed(5)}`);
+
+        if (doReverseGeocode) {
+            reverseGeocode(roundedLat, roundedLng);
+        }
+    }
+
+    // Reverse Geocoding with OpenStreetMap Nominatim (with respectful error fallback)
+    function reverseGeocode(lat, lng) {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=14&addressdetails=1`;
+        
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Geocoding service unavailable');
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.display_name) {
+                // Shorten or format address
+                const displayName = data.display_name.split(',').slice(0, 3).join(',').trim();
+                if (displayName) {
+                    locAddressInput.value = displayName;
+                    marker.setPopupContent(`<strong>${displayName}</strong><br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`);
+                }
+            }
+        })
+        .catch(err => {
+            // Graceful fallback: do not interrupt user if rate-limited or offline
+            console.log('Reverse geocoding notice:', err.message);
+        });
+    }
+
+    // 1. Marker Drag Event
+    marker.on('dragend', function (e) {
+        const position = marker.getLatLng();
+        updateCoordinates(position.lat, position.lng, true);
+    });
+
+    // 2. Map Click Event (Manual Map Selection)
+    map.on('click', function (e) {
+        updateCoordinates(e.latlng.lat, e.latlng.lng, true);
+        marker.openPopup();
+    });
+
+    // 3. GPS Browser Geolocation
+    btnUseGps.addEventListener('click', function () {
+        if (!navigator.geolocation) {
+            showGpsAlert('Geolocation is not supported by your browser.', 'danger');
+            return;
+        }
+
+        showGpsAlert('Requesting GPS permission from browser...', 'info');
+        btnUseGps.disabled = true;
+        btnUseGps.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Locating...';
+
+        navigator.geolocation.getCurrentPosition(
+            // Success Callback
+            function (position) {
+                const curLat = position.coords.latitude;
+                const curLng = position.coords.longitude;
+                const accuracy = position.coords.accuracy ? Math.round(position.coords.accuracy) : null;
+
+                map.setView([curLat, curLng], 14);
+                updateCoordinates(curLat, curLng, true);
+                marker.openPopup();
+
+                const accuracyMsg = accuracy ? ` (Accuracy: ~${accuracy}m)` : '';
+                showGpsAlert(`Location detected successfully!${accuracyMsg}`, 'success');
+
+                btnUseGps.disabled = false;
+                btnUseGps.innerHTML = '<i class="bi bi-crosshair me-1"></i>Use My Current Location';
+            },
+            // Error Callback
+            function (error) {
+                let msg = 'Could not obtain location.';
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        msg = 'Location permission was denied. You can manually click on the map or drag the marker.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        msg = 'Location information is currently unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        msg = 'Location request timed out. Please try clicking on the map.';
+                        break;
+                }
+                showGpsAlert(msg, 'warning');
+                btnUseGps.disabled = false;
+                btnUseGps.innerHTML = '<i class="bi bi-crosshair me-1"></i>Use My Current Location';
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 30000
+            }
+        );
+    });
+
+    // 4. Clear Location Button
+    btnClearLocation.addEventListener('click', function () {
+        latInput.value = '';
+        lngInput.value = '';
+        locAddressInput.value = '';
+        displayLat.textContent = 'Not set';
+        displayLng.textContent = 'Not set';
+        map.setView([KERALA_DEFAULT_LAT, KERALA_DEFAULT_LNG], DEFAULT_ZOOM);
+        marker.setLatLng([KERALA_DEFAULT_LAT, KERALA_DEFAULT_LNG]);
+        marker.setPopupContent('<strong>Location cleared</strong>. Click to pick a new one.').openPopup();
+        showGpsAlert('Coordinates cleared. Click "Save All Changes" to remove coordinates from profile.', 'secondary');
+    });
+
+    function showGpsAlert(message, type) {
+        gpsAlertBox.className = `alert alert-${type} py-2 px-3 small`;
+        gpsAlertText.textContent = message;
+        gpsAlertBox.classList.remove('d-none');
+    }
+});
+</script>
+{% endblock %}

@@ -2,7 +2,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .forms import TouristRegistrationForm, TouristLoginForm
+from .forms import TouristRegistrationForm, TouristLoginForm, TouristProfileEditForm
+from .models import TouristProfile
 
 def register_view(request):
     """Handles Tourist Registration."""
@@ -73,7 +74,53 @@ def logout_view(request):
 @login_required(login_url='accounts:login')
 def dashboard_view(request):
     """Protected Tourist Dashboard."""
-    profile = getattr(request.user, 'tourist_profile', None)
+    profile, _ = TouristProfile.objects.get_or_create(user=request.user)
     return render(request, 'accounts/dashboard.html', {
+        'profile': profile,
+    })
+
+
+@login_required(login_url='accounts:login')
+def profile_edit_view(request):
+    """Allows tourists to edit their profile information and choose their GPS location using Leaflet."""
+    profile, _ = TouristProfile.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        form = TouristProfileEditForm(request.POST)
+        if form.is_valid():
+            cleaned = form.cleaned_data
+            # Update User fields
+            request.user.first_name = cleaned['first_name']
+            request.user.last_name = cleaned['last_name']
+            request.user.save()
+
+            # Update TouristProfile fields
+            profile.phone_number = cleaned.get('phone_number', '')
+            profile.district = cleaned.get('district', '')
+            profile.address = cleaned.get('address', '')
+            profile.location_address = cleaned.get('location_address', '')
+            profile.latitude = cleaned.get('latitude')
+            profile.longitude = cleaned.get('longitude')
+            profile.save()
+
+            messages.success(request, "Your profile and GPS location settings have been updated successfully!")
+            return redirect('accounts:dashboard')
+        else:
+            messages.error(request, "Please correct the errors in the profile form.")
+    else:
+        initial_data = {
+            'first_name': request.user.first_name,
+            'last_name': request.user.last_name,
+            'phone_number': profile.phone_number,
+            'district': profile.district,
+            'address': profile.address,
+            'location_address': profile.location_address,
+            'latitude': profile.latitude,
+            'longitude': profile.longitude,
+        }
+        form = TouristProfileEditForm(initial=initial_data)
+
+    return render(request, 'accounts/profile_edit.html', {
+        'form': form,
         'profile': profile,
     })

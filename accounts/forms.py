@@ -278,6 +278,8 @@ class TouristProfileEditForm(forms.Form):
         lng = cleaned_data.get('longitude')
 
         if (lat is not None and lng is None) or (lat is None and lng is not None):
-            raise ValidationError("Both latitude and longitude must be provided together, or leave both empty.")
+            msg = "Both latitude and longitude must be provided together, or leave both empty."
+            self.add_error('latitude', msg)
+            self.add_error('longitude', msg)
 
         return cleaned_data

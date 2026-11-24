@@ -10,6 +10,7 @@ class TouristAuthTests(TestCase):
         self.login_url = reverse('accounts:login')
         self.logout_url = reverse('accounts:logout')
         self.dashboard_url = reverse('accounts:dashboard')
+        self.profile_edit_url = reverse('accounts:profile_edit')
 
         # Sample valid registration payload
         self.valid_payload = {
@@ -139,3 +140,142 @@ class TouristAuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
         expected_redirect = f"{self.login_url}?next={self.dashboard_url}"
         self.assertRedirects(response, expected_redirect)
+
+    def test_10_profile_edit_page_loads_for_authenticated_tourist(self):
+        """10. Test profile edit & map page loads with Leaflet for authenticated tourist."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+        response = self.client.get(self.profile_edit_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "keralaMap")
+        self.assertContains(response, "Use My Current Location")
+        self.assertContains(response, "Interactive Kerala Location Picker")
+
+    def test_11_save_valid_gps_coordinates(self):
+        """11. Test saving valid GPS coordinates and landmark to TouristProfile."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        payload = {
+            'first_name': 'Anandhu',
+            'last_name': 'Kumar',
+            'phone_number': '+91 9847123456',
+            'district': 'Ernakulam',
+            'address': 'Marine Drive, Kochi',
+            'location_address': 'Fort Kochi Beach',
+            'latitude': '9.965800',
+            'longitude': '76.242100',
+        }
+        response = self.client.post(self.profile_edit_url, payload, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, self.dashboard_url)
+
+        # Verify profile updated in database
+        profile = TouristProfile.objects.get(user__username='anandhu')
+        self.assertEqual(float(profile.latitude), 9.965800)
+        self.assertEqual(float(profile.longitude), 76.242100)
+        self.assertEqual(profile.location_address, 'Fort Kochi Beach')
+        self.assertEqual(profile.district, 'Ernakulam')
+
+    def test_12_update_gps_coordinates(self):
+        """12. Test updating existing coordinates to a new Kerala destination (Munnar)."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        # First save (Kochi)
+        self.client.post(self.profile_edit_url, {
+            'first_name': 'Anandhu',
+            'last_name': 'Kumar',
+            'phone_number': '+91 9847123456',
+            'district': 'Ernakulam',
+            'location_address': 'Fort Kochi',
+            'latitude': '9.965800',
+            'longitude': '76.242100',
+        })
+
+        # Update to Munnar, Idukki
+        update_payload = {
+            'first_name': 'Anandhu',
+            'last_name': 'Kumar',
+            'phone_number': '+91 9847123456',
+            'district': 'Idukki',
+            'location_address': 'Munnar Tea Estates, Idukki',
+            'latitude': '10.088933',
+            'longitude': '77.059525',
+        }
+        response = self.client.post(self.profile_edit_url, update_payload, follow=True)
+        self.assertEqual(response.status_code, 200)
+
+        profile = TouristProfile.objects.get(user__username='anandhu')
+        self.assertEqual(float(profile.latitude), 10.088933)
+        self.assertEqual(float(profile.longitude), 77.059525)
+        self.assertEqual(profile.district, 'Idukki')
+        self.assertEqual(profile.location_address, 'Munnar Tea Estates, Idukki')
+
+    def test_13_reject_invalid_gps_coordinates(self):
+        """13. Test server-side validation rejects invalid latitude/longitude ranges."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        # Latitude > 90
+        invalid_lat_payload = {
+            'first_name': 'Anandhu',
+            'latitude': '95.000000',
+            'longitude': '76.242100',
+        }
+        res_lat = self.client.post(self.profile_edit_url, invalid_lat_payload)
+        self.assertEqual(res_lat.status_code, 200)
+        self.assertContains(res_lat, "Latitude must be between -90.0 and 90.0")
+
+        # Longitude > 180
+        invalid_lng_payload = {
+            'first_name': 'Anandhu',
+            'latitude': '10.000000',
+            'longitude': '195.000000',
+        }
+        res_lng = self.client.post(self.profile_edit_url, invalid_lng_payload)
+        self.assertEqual(res_lng.status_code, 200)
+        self.assertContains(res_lng, "Longitude must be between -180.0 and 180.0")
+
+    def test_14_reject_unbalanced_coordinates(self):
+        """14. Test rejection when one coordinate is provided without the other."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        unbalanced_payload = {
+            'first_name': 'Anandhu',
+            'latitude': '10.850500',
+            'longitude': '',  # missing
+        }
+        res = self.client.post(self.profile_edit_url, unbalanced_payload)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Both latitude and longitude must be provided together")
+
+    def test_15_profile_data_remains_intact_when_updating_gps(self):
+        """15. Test that existing user info (username, email) remains intact when updating GPS."""
+        self.client.post(self.register_url, self.valid_payload)
+        self.client.login(username='anandhu', password='Kerala@Travel2026')
+
+        payload = {
+            'first_name': 'Anandhu Renamed',
+            'last_name': 'Kumar Updated',
+            'phone_number': '+91 9999999999',
+            'district': 'Wayanad',
+            'location_address': 'Vythiri, Wayanad',
+            'latitude': '11.551800',
+            'longitude': '76.041600',
+        }
+        self.client.post(self.profile_edit_url, payload)
+
+        user = User.objects.get(username='anandhu')
+        self.assertEqual(user.email, 'anandhu@example.com')  # Email preserved
+        self.assertEqual(user.first_name, 'Anandhu Renamed')
+        self.assertFalse(user.is_staff)  # Privileges safe
+        self.assertFalse(user.is_superuser)
+
+    def test_16_profile_edit_unauthenticated_redirect(self):
+        """16. Test unauthenticated access to profile edit is redirected to login."""
+        response = self.client.get(self.profile_edit_url)
+        self.assertEqual(response.status_code, 302)
+        expected = f"{self.login_url}?next={self.profile_edit_url}"
+        self.assertRedirects(response, expected)

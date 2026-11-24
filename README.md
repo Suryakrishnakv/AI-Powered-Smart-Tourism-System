@@ -23,9 +23,9 @@ An intelligent tourism web platform exclusively crafted for **Kerala, India ("Go
 - **Backend:** Python 3.13, Django 6.1.3
 - **Database:** PostgreSQL 18 (using modern `psycopg` v3 adapter)
 - **Frontend:** HTML5, CSS3, JavaScript, Bootstrap 5, Bootstrap Icons, Google Fonts
+- **Maps & Geospatial:** Leaflet.js, OpenStreetMap tiles, Browser Geolocation API
 - **Image Processing:** Pillow
 - **AI & Analytics (Upcoming):** Pandas, NumPy, Scikit-learn
-- **Geospatial & Mapping (Upcoming):** Leaflet, OpenStreetMap, Browser Geolocation API
 - **Visualizations (Upcoming):** Chart.js
 
 ---
@@ -59,7 +59,21 @@ An intelligent tourism web platform exclusively crafted for **Kerala, India ("Go
   - Profile details display (email, phone, district, member since).
   - Quick action modules for *Explore Kerala*, *Plan Your Trip*, *GPS Nearby Discovery*, and *My Trips*.
 - **Comprehensive Automated Tests (`accounts/tests.py`):**
-  - 9 automated unit tests verifying successful registration, duplicate username rejection, duplicate email rejection, password mismatch validation, dual-login (username/email), invalid credentials rejection, dashboard access control, logout, and unauthenticated redirect protection. All 9 tests passing.
+  - 16 automated unit tests verifying successful registration, duplicate username rejection, duplicate email rejection, password mismatch validation, dual-login (username/email), invalid credentials rejection, dashboard access control, logout, unauthenticated redirect protection, GPS coordinate saving/updating, range boundary validation, and data preservation. All 16 tests passing.
+
+---
+
+### ✅ Phase 2.2: Tourist GPS Location & Interactive Leaflet Map
+- **Interactive Map Integration:** Integrated Leaflet.js with OpenStreetMap tiles centered on Kerala without requiring any proprietary Google Maps API keys.
+- **Location Picker (`/accounts/profile/edit/`):**
+  - Interactive clickable Kerala map.
+  - Draggable location marker dynamically updating coordinate fields.
+  - "Use My Current Location" button leveraging the browser Geolocation API (`navigator.geolocation`) with user permission checks.
+  - Graceful fallback for manual map picking if location permission is denied.
+  - Reverse geocoding via OpenStreetMap Nominatim with respectful error handling.
+  - Clear/reset location control.
+- **Server-Side Coordinate Validation:** Strict validation of latitude (-90° to +90°) and longitude (-180° to +180°) ranges on Django server before database persistence.
+- **Tourist Dashboard Enhancements:** Displays live coordinates badge, landmark name, and interactive mini Leaflet preview map.
 
 ---
 
