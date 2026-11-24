@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     # Local Apps
     'core',
     'accounts',
+    'destinations',
 ]
 
 AUTHENTICATION_BACKENDS = [

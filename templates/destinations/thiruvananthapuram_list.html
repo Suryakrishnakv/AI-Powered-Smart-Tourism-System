@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Explore Thiruvananthapuram | 50 Verified Tourist Destinations{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+    .tvm-hero {
+        background: linear-gradient(135deg, rgba(7, 71, 50, 0.92) 0%, rgba(11, 110, 79, 0.88) 100%),
+                    url('https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Sree_Padmanabhaswamy_Temple_East_Fort.jpg/1280px-Sree_Padmanabhaswamy_Temple_East_Fort.jpg') center/cover no-repeat;
+        color: #ffffff;
+        padding: 60px 0 50px 0;
+    }
+    .dest-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .dest-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 16px 32px rgba(11, 110, 79, 0.12);
+        border-color: #cbd5e1;
+    }
+    .dest-img-wrapper {
+        height: 210px;
+        position: relative;
+        overflow: hidden;
+        background-color: #e2e8f0;
+    }
+    .dest-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.4s ease;
+    }
+    .dest-card:hover .dest-img {
+        transform: scale(1.05);
+    }
+    .category-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: rgba(11, 110, 79, 0.9);
+        backdrop-filter: blur(4px);
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+    .verified-badge {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(4px);
+        color: #6ee7b7;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+    .dest-map-container {
+        height: 420px;
+        width: 100%;
+        border-radius: 16px;
+        border: 2px solid #e2e8f0;
+        z-index: 1;
+    }
+    .cat-filter-pill {
+        border-radius: 25px;
+        padding: 6px 16px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+    }
+    .cat-filter-pill:hover, .cat-filter-pill.active {
+        background: var(--primary-emerald);
+        border-color: var(--primary-emerald);
+        color: #ffffff;
+        box-shadow: 0 4px 10px rgba(11, 110, 79, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- District Header Banner -->
+<section class="tvm-hero">
+    <div class="container">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold">
+                        <i class="bi bi-geo-alt-fill me-1"></i>District 01 of 14
+                    </span>
+                    <span class="badge bg-success border border-success-subtle">
+                        <i class="bi bi-patch-check-fill me-1"></i>Real & Verified Data Only
+                    </span>
+                </div>
+                <h1 class="font-heading display-5 fw-bold mb-2">Thiruvananthapuram</h1>
+                <p class="lead mb-3 text-white-50">
+                    The Capital of God's Own Country. Explore 50 verified destinations ranging from crescent beaches and sacred temples to misty Western Ghats peaks and colonial palaces.
+                </p>
+                <div class="d-flex flex-wrap gap-3 text-white small">
+                    <span><i class="bi bi-building me-1 text-warning"></i>HQ: Thiruvananthapuram</span>
+                    <span><i class="bi bi-signpost-2 me-1 text-warning"></i>50 Official Destinations</span>
+                    <span><i class="bi bi-telephone me-1 text-warning"></i>DTPC: +91 471 2321132</span>
+                </div>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <a href="#destMapSection" class="btn btn-warning px-4 py-2 fw-semibold text-dark shadow-sm">
+                    <i class="bi bi-map-fill me-2"></i>Interactive District Map
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filter & Search Controls -->
+<section class="py-4 bg-white border-bottom shadow-sm">
+    <div class="container">
+        <!-- Search and Counts Row -->
+        <form method="get" action="{% url 'destinations:thiruvananthapuram_list' %}" class="row g-3 align-items-center mb-3">
+            <div class="col-md-7 col-lg-8">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0">
+                        <i class="bi bi-search text-success"></i>
+                    </span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control border-start-0 ps-0" placeholder="Search Thiruvananthapuram destinations by name, locality, or activities (e.g. Varkala, Kovalam, Boating)...">
+                    {% if selected_category %}
+                        <input type="hidden" name="category" value="{{ selected_category }}">
+                    {% endif %}
+                    <button type="submit" class="btn btn-kerala-primary px-4 fw-semibold">Search</button>
+                    {% if query or selected_category %}
+                        <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-outline-secondary" title="Clear Filters">
+                            <i class="bi bi-x-circle"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-5 col-lg-4 text-md-end text-muted small">
+                Showing <strong>{{ total_count }}</strong> of 50 verified destinations
+            </div>
+        </form>
+
+        <!-- Category Pills -->
+        <div class="d-flex flex-wrap gap-2 pt-1">
+            <a href="{% url 'destinations:thiruvananthapuram_list' %}{% if query %}?q={{ query }}{% endif %}" class="cat-filter-pill {% if not selected_category %}active{% endif %}">
+                <i class="bi bi-grid-fill"></i>All Categories
+            </a>
+            {% for cat in categories %}
+            <a href="{% url 'destinations:thiruvananthapuram_list' %}?category={{ cat.slug }}{% if query %}&q={{ query }}{% endif %}" class="cat-filter-pill {% if selected_category == cat.slug %}active{% endif %}">
+                <i class="bi {{ cat.icon }}"></i>{{ cat.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Interactive Map Section -->
+<section id="destMapSection" class="py-5 bg-light border-bottom">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-3">
+            <div>
+                <span class="text-success fw-bold text-uppercase small">Geographic Visualization</span>
+                <h3 class="font-heading fw-bold mb-0">Thiruvananthapuram Interactive Destination Map</h3>
+            </div>
+            <span class="text-muted small">Click any marker to view photos and details</span>
+        </div>
+
+        <div id="tvmDistrictMap" class="dest-map-container shadow-sm"></div>
+    </div>
+</section>
+
+<!-- Destination Cards Grid -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            {% for dest in destinations %}
+            <div class="col-xl-4 col-md-6">
+                <div class="dest-card">
+                    <div class="dest-img-wrapper">
+                        <img src="{{ dest.display_image_url }}" alt="{{ dest.name }}" class="dest-img" loading="lazy">
+                        <span class="category-badge">
+                            <i class="bi {{ dest.category.icon }} me-1"></i>{{ dest.category.name }}
+                        </span>
+                        <span class="verified-badge">
+                            <i class="bi bi-shield-check me-1"></i>{{ dest.verification_status }}
+                        </span>
+                    </div>
+
+                    <div class="p-4 d-flex flex-column flex-grow-1">
+                        <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                            <h5 class="fw-bold mb-0 text-dark font-heading">
+                                <a href="{{ dest.get_absolute_url }}" class="text-decoration-none text-dark">
+                                    {{ dest.name }}
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div class="text-muted small mb-3">
+                            <i class="bi bi-geo-alt text-danger me-1"></i>{{ dest.village_locality|default:"Thiruvananthapuram" }}
+                        </div>
+
+                        <p class="text-secondary small mb-4 flex-grow-1" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                            {{ dest.short_description }}
+                        </p>
+
+                        <div class="pt-3 border-top d-flex justify-content-between align-items-center">
+                            <div class="small">
+                                <span class="text-muted d-block" style="font-size: 0.75rem;">TIMINGS / ENTRY</span>
+                                <strong class="text-dark">{{ dest.opening_hours|default:"Open Daytime"|truncatechars:18 }}</strong>
+                            </div>
+                            <a href="{{ dest.get_absolute_url }}" class="btn btn-kerala-primary btn-sm px-3 fw-semibold">
+                                View Details <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5">
+                <div class="p-5 bg-white rounded-4 border">
+                    <i class="bi bi-search text-muted fs-1 mb-3"></i>
+                    <h4>No destinations found matching your criteria</h4>
+                    <p class="text-muted">Try clearing your search term or selecting "All Categories".</p>
+                    <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-kerala-primary">
+                        Reset All Filters
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Thiruvananthapuram Center Coordinates
+    const TVM_CENTER_LAT = 8.524139;
+    const TVM_CENTER_LNG = 76.936638;
+
+    const map = L.map('tvmDistrictMap', {
+        center: [TVM_CENTER_LAT, TVM_CENTER_LNG],
+        zoom: 10,
+        scrollWheelZoom: false
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Marker Data rendered from Django backend
+    const markersData = {{ map_markers|safe }};
+    const bounds = L.latLngBounds();
+
+    markersData.forEach(function (item) {
+        if (item.lat && item.lng) {
+            const marker = L.marker([item.lat, item.lng]).addTo(map);
+            bounds.extend([item.lat, item.lng]);
+
+            const popupContent = `
+                <div style="max-width: 220px; font-family: 'Plus Jakarta Sans', sans-serif;">
+                    <img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;">
+                    <span style="font-size: 0.75rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${item.category}</span>
+                    <h6 style="margin: 6px 0 2px 0; font-weight: 700;">${item.name}</h6>
+                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;"><i class="bi bi-geo-alt text-danger me-1"></i>${item.locality}</p>
+                    <a href="${item.url}" class="btn btn-success btn-sm w-100 text-white" style="font-size: 0.8rem; font-weight: 600; padding: 4px 8px;">View Details</a>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+        }
+    });
+
+    if (markersData.length > 0) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+    }
+});
+</script>
+{% endblock %}

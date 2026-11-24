@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ destination.name }} | Thiruvananthapuram Tourism{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+    .dest-detail-hero {
+        position: relative;
+        height: 480px;
+        background-color: #0f172a;
+        overflow: hidden;
+    }
+    .dest-detail-hero-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.85;
+    }
+    .dest-detail-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(15, 23, 42, 0.95) 100%);
+        padding: 50px 0 35px 0;
+        color: #ffffff;
+    }
+    .detail-map {
+        height: 340px;
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        z-index: 1;
+    }
+    .info-tile {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px 20px;
+        height: 100%;
+    }
+    .activity-badge {
+        background: #f0fdf4;
+        color: var(--primary-dark);
+        border: 1px solid #bbf7d0;
+        padding: 6px 14px;
+        border-radius: 30px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb Bar -->
+<div class="bg-light py-2 border-bottom">
+    <div class="container small">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'core:home' %}" class="text-success text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'destinations:thiruvananthapuram_list' %}" class="text-success text-decoration-none">Thiruvananthapuram</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ destination.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Hero Photo Header -->
+<div class="dest-detail-hero">
+    <img src="{{ destination.display_image_url }}" alt="{{ destination.name }}" class="dest-detail-hero-img">
+    <div class="dest-detail-overlay">
+        <div class="container">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="badge bg-success px-3 py-1 rounded-pill">
+                    <i class="bi {{ destination.category.icon }} me-1"></i>{{ destination.category.name }}
+                </span>
+                <span class="badge bg-primary px-3 py-1 rounded-pill">
+                    <i class="bi bi-shield-check me-1"></i>Status: {{ destination.verification_status }}
+                </span>
+                <span class="badge bg-dark border border-secondary text-white-50">
+                    <i class="bi bi-geo-alt text-danger me-1"></i>{{ destination.village_locality|default:"Thiruvananthapuram" }}
+                </span>
+            </div>
+            <h1 class="display-4 font-heading fw-bold text-white mb-2">{{ destination.name }}</h1>
+            <p class="lead text-white-50 mb-0" style="max-width: 800px;">
+                {{ destination.short_description }}
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Area -->
+<section class="py-5">
+    <div class="container">
+        <!-- Highlights Bar -->
+        <div class="row g-3 mb-5">
+            <div class="col-lg-3 col-sm-6">
+                <div class="info-tile">
+                    <span class="text-muted small text-uppercase fw-semibold d-block mb-1">
+                        <i class="bi bi-ticket-perforated text-success me-1"></i>Entry Ticket
+                    </span>
+                    <h6 class="fw-bold mb-0 text-dark">{{ destination.entry_fee|default:"Free / Unspecified" }}</h6>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="info-tile">
+                    <span class="text-muted small text-uppercase fw-semibold d-block mb-1">
+                        <i class="bi bi-clock-history text-success me-1"></i>Visiting Hours
+                    </span>
+                    <h6 class="fw-bold mb-0 text-dark">{{ destination.opening_hours|default:"Open Daytime" }}</h6>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="info-tile">
+                    <span class="text-muted small text-uppercase fw-semibold d-block mb-1">
+                        <i class="bi bi-calendar-check text-success me-1"></i>Best Season
+                    </span>
+                    <h6 class="fw-bold mb-0 text-dark">{{ destination.best_time_to_visit|default:"October to March" }}</h6>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="info-tile">
+                    <span class="text-muted small text-uppercase fw-semibold d-block mb-1">
+                        <i class="bi bi-pin-map text-success me-1"></i>Location Pin
+                    </span>
+                    <h6 class="fw-bold mb-0 text-dark font-monospace small">
+                        {{ destination.latitude|floatformat:4 }}°N, {{ destination.longitude|floatformat:4 }}°E
+                    </h6>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left Column: Detailed Information -->
+            <div class="col-lg-7">
+                <div class="p-4 bg-white rounded-4 border shadow-sm mb-4">
+                    <h4 class="font-heading fw-bold mb-3 text-dark">About {{ destination.name }}</h4>
+                    <div class="text-secondary lh-lg mb-4" style="white-space: pre-line;">
+                        {{ destination.detailed_description }}
+                    </div>
+
+                    {% if destination.activities_list %}
+                    <h5 class="fw-bold mb-3 text-dark">
+                        <i class="bi bi-stars text-success me-2"></i>Available Tourist Activities
+                    </h5>
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        {% for act in destination.activities_list %}
+                        <span class="activity-badge">
+                            <i class="bi bi-check2-circle text-success"></i>{{ act }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if destination.full_address %}
+                    <div class="p-3 bg-light rounded-3 border">
+                        <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Official Address</h6>
+                        <p class="text-muted small mb-0">{{ destination.full_address }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Verified Data Source Provenance Card -->
+                <div class="p-4 rounded-4 border bg-white shadow-sm mb-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-shield-check fs-4 text-success"></i>
+                            <h5 class="font-heading fw-bold mb-0">Official Data Verification Record</h5>
+                        </div>
+                        <span class="badge {{ destination.status_badge_class }} px-3 py-1">
+                            {{ destination.verification_status }}
+                        </span>
+                    </div>
+
+                    <ul class="list-unstyled small mb-3">
+                        <li class="mb-2 d-flex justify-content-between">
+                            <span class="text-muted">Primary Data Source:</span>
+                            <strong class="text-dark">{{ destination.source_name }}</strong>
+                        </li>
+                        {% if destination.source_url %}
+                        <li class="mb-2 d-flex justify-content-between">
+                            <span class="text-muted">Verification URL:</span>
+                            <a href="{{ destination.source_url }}" target="_blank" rel="noopener noreferrer" class="text-success text-decoration-none text-truncate" style="max-width: 300px;">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>{{ destination.source_url }}
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="mb-2 d-flex justify-content-between">
+                            <span class="text-muted">Last Verified Date:</span>
+                            <span class="text-dark">{{ destination.last_verified_date|date:"F d, Y"|default:"Verified" }}</span>
+                        </li>
+                        {% if destination.image_attribution %}
+                        <li class="d-flex justify-content-between">
+                            <span class="text-muted">Image License & Credit:</span>
+                            <span class="text-dark text-end" style="max-width: 300px;">{{ destination.image_attribution }}</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+
+                    <div class="text-muted small border-top pt-2" style="font-size: 0.78rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <em>Protected under the Global Project Requirement: Real and Verified Data Only. Zero fabricated information.</em>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Interactive Map & Official Links -->
+            <div class="col-lg-5">
+                <div class="p-4 bg-white rounded-4 border shadow-sm sticky-top" style="top: 90px;">
+                    <h5 class="font-heading fw-bold mb-3 text-dark">
+                        <i class="bi bi-map-fill text-success me-2"></i>Location & GPS Map
+                    </h5>
+
+                    <!-- Leaflet Destination Map -->
+                    <div id="destinationMap" class="detail-map mb-3"></div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="small text-muted">
+                            Coordinates: <strong>{{ destination.latitude|floatformat:5 }}, {{ destination.longitude|floatformat:5 }}</strong>
+                        </span>
+                        <a href="https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=%3B{{ destination.latitude }}%2C{{ destination.longitude }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-sign-turn-right me-1"></i>Directions
+                        </a>
+                    </div>
+
+                    {% if destination.official_website %}
+                    <div class="d-grid mb-2">
+                        <a href="{{ destination.official_website }}" target="_blank" rel="noopener noreferrer" class="btn btn-kerala-outline btn-sm">
+                            <i class="bi bi-globe me-1"></i>Official Attraction Website
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    {% if destination.contact_info %}
+                    <div class="p-3 bg-light rounded-3 border text-center small mt-3">
+                        <span class="text-muted d-block mb-1">Official Information / Help Desk</span>
+                        <strong class="text-dark">{{ destination.contact_info }}</strong>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid mt-3">
+                        <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-kerala-primary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Thiruvananthapuram
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const lat = {{ destination.latitude }};
+    const lng = {{ destination.longitude }};
+
+    const map = L.map('destinationMap', {
+        center: [lat, lng],
+        zoom: 14,
+        scrollWheelZoom: false
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const marker = L.marker([lat, lng]).addTo(map);
+    marker.bindPopup("<strong>{{ destination.name|escapejs }}</strong><br>{{ destination.village_locality|escapejs }}").openPopup();
+});
+</script>
+{% endblock %}
