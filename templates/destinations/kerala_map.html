@@ -1,0 +1,1327 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Interactive Kerala Tourism Map | AI Smart Travel Explorer{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<!-- MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+<style>
+    /* Full-height Map Shell */
+    .map-app-shell {
+        display: flex;
+        height: calc(100vh - 72px);
+        min-height: 580px;
+        position: relative;
+        overflow: hidden;
+        background-color: #0f172a;
+    }
+
+    /* Left Sidebar */
+    .map-sidebar {
+        width: 420px;
+        min-width: 320px;
+        max-width: 100%;
+        background: #ffffff;
+        border-right: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        z-index: 1000;
+        transition: transform 0.3s ease, width 0.3s ease;
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.05);
+    }
+
+    .map-sidebar.collapsed {
+        transform: translateX(-100%);
+        position: absolute;
+        height: 100%;
+    }
+
+    .sidebar-header {
+        padding: 16px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .sidebar-nav-tabs .nav-link {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #64748b;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 10px 14px;
+        border-radius: 0;
+    }
+
+    .sidebar-nav-tabs .nav-link.active {
+        color: var(--primary-emerald);
+        border-bottom: 2px solid var(--primary-emerald);
+        background: transparent;
+    }
+
+    .sidebar-scrollable-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    /* Destination Mini Cards in Sidebar */
+    .dest-mini-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        gap: 12px;
+    }
+
+    .dest-mini-card:hover {
+        border-color: var(--primary-emerald);
+        box-shadow: 0 4px 12px rgba(11, 110, 79, 0.08);
+        transform: translateY(-1px);
+    }
+
+    .dest-mini-card.active {
+        border-color: var(--primary-emerald);
+        background-color: #f0fdf4;
+    }
+
+    .dest-mini-thumb {
+        width: 84px;
+        height: 84px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: #e2e8f0;
+        flex-shrink: 0;
+    }
+
+    /* Main Map Viewport */
+    .map-viewport-wrapper {
+        flex: 1;
+        position: relative;
+        height: 100%;
+    }
+
+    #kerala-interactive-map {
+        width: 100%;
+        height: 100%;
+        background-color: #e5e7eb;
+    }
+
+    /* Floating Map Toolbars */
+    .map-floating-bar {
+        position: absolute;
+        top: 14px;
+        z-index: 999;
+        display: flex;
+        gap: 8px;
+    }
+
+    .map-floating-bar-left {
+        left: 14px;
+    }
+
+    .map-floating-bar-right {
+        right: 14px;
+    }
+
+    .btn-map-control {
+        background: #ffffff;
+        color: #1e293b;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        padding: 8px 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+
+    .btn-map-control:hover {
+        background: #f8fafc;
+        color: var(--primary-emerald);
+        border-color: var(--primary-emerald);
+    }
+
+    /* Right Sliding Detail Panel */
+    .map-detail-drawer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 400px;
+        max-width: 100%;
+        background: #ffffff;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+        z-index: 1050;
+        overflow-y: auto;
+        transform: translateX(100%);
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .map-detail-drawer.open {
+        transform: translateX(0);
+    }
+
+    .drawer-img-header {
+        position: relative;
+        height: 220px;
+        background: #334155;
+    }
+
+    .drawer-img-header img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .drawer-close-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #ffffff;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+    }
+
+    .drawer-close-btn:hover {
+        background: rgba(0, 0, 0, 0.85);
+    }
+
+    /* Category Marker Styles */
+    .custom-map-pin {
+        width: 36px;
+        height: 36px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #ffffff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+    }
+
+    .custom-map-pin i {
+        transform: rotate(45deg);
+        color: #ffffff;
+        font-size: 1rem;
+    }
+
+    /* GPS Live Pulse Marker */
+    .gps-pulse-marker {
+        width: 18px;
+        height: 18px;
+        background: #2563eb;
+        border-radius: 50%;
+        border: 3px solid #ffffff;
+        box-shadow: 0 0 0 rgba(37, 99, 235, 0.6);
+        animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+        70% { box-shadow: 0 0 0 16px rgba(37, 99, 235, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+
+    /* Trip Planner Stop Items */
+    .trip-stop-item {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .stop-badge {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--primary-emerald);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    @media (max-width: 991px) {
+        .map-sidebar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1040;
+            transform: translateX(-100%);
+        }
+        .map-sidebar.open-mobile {
+            transform: translateX(0);
+        }
+        .map-detail-drawer {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="map-app-shell">
+    <!-- Left Interactive Control Sidebar -->
+    <aside class="map-sidebar" id="mapSidebar">
+        <!-- Sidebar Header with Search & Quick Filters -->
+        <div class="sidebar-header">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-compass text-success fs-5"></i>
+                    <h6 class="mb-0 fw-bold font-heading">Kerala Tourism Map</h6>
+                </div>
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" id="visibleCountBadge">
+                    {{ total_destinations_count }} Places
+                </span>
+            </div>
+
+            <!-- Search input -->
+            <div class="input-group input-group-sm mb-2 shadow-sm">
+                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="mapSearchInput" class="form-control border-start-0 ps-0" placeholder="Search places, activities, locality...">
+                <button class="btn btn-outline-secondary border-start-0" type="button" id="clearSearchBtn" title="Clear Search">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+
+            <!-- Filter Selects -->
+            <div class="row g-2">
+                <div class="col-6">
+                    <select id="districtFilter" class="form-select form-select-sm shadow-sm">
+                        <option value="">All Kerala ({{ districts_count }} Districts)</option>
+                        {% for d in districts %}
+                            <option value="{{ d.slug }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6">
+                    <select id="categoryFilter" class="form-select form-select-sm shadow-sm">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.slug }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Navigation Tabs -->
+        <ul class="nav nav-tabs sidebar-nav-tabs px-3" role="tablist">
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link active w-100" id="tab-explore-btn" data-bs-toggle="tab" data-bs-target="#pane-explore" type="button" role="tab">
+                    <i class="bi bi-grid-fill me-1"></i>Explore
+                </button>
+            </li>
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link w-100" id="tab-nearby-btn" data-bs-toggle="tab" data-bs-target="#pane-nearby" type="button" role="tab">
+                    <i class="bi bi-crosshair me-1"></i>Nearby GPS
+                </button>
+            </li>
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link w-100" id="tab-trip-btn" data-bs-toggle="tab" data-bs-target="#pane-trip" type="button" role="tab">
+                    <i class="bi bi-signpost-split-fill me-1"></i>Trip (<span id="tripCountBadge">0</span>)
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content Areas -->
+        <div class="tab-content sidebar-scrollable-content" id="sidebarTabContent">
+            <!-- Explore Tab Pane -->
+            <div class="tab-pane fade show active" id="pane-explore" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted fw-semibold">VERIFIED DESTINATIONS</small>
+                    <button class="btn btn-link btn-sm p-0 text-decoration-none text-success" id="resetFiltersBtn">Reset Filters</button>
+                </div>
+                <div id="destinationsListContainer">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Nearby GPS Tab Pane -->
+            <div class="tab-pane fade" id="pane-nearby" role="tabpanel">
+                <div class="card border-0 bg-light p-3 mb-3 rounded-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="fw-bold small text-dark"><i class="bi bi-geo-alt-fill text-primary me-1"></i>Live Location</span>
+                        <span id="gpsStatusPill" class="badge bg-secondary">GPS Inactive</span>
+                    </div>
+                    <p class="small text-muted mb-2">Discover verified attractions around your real-time GPS coordinates using precision distance metrics.</p>
+                    <button class="btn btn-primary btn-sm w-100 fw-semibold mb-2" id="sidebarLocateBtn">
+                        <i class="bi bi-crosshair me-1"></i>Detect My Current Location
+                    </button>
+                    
+                    <div class="d-flex align-items-center justify-content-between pt-1">
+                        <label for="nearbyRadiusSelect" class="form-label small mb-0 fw-semibold">Radius:</label>
+                        <select id="nearbyRadiusSelect" class="form-select form-select-sm w-auto">
+                            <option value="5">5 km</option>
+                            <option value="10">10 km</option>
+                            <option value="25" selected>25 km</option>
+                            <option value="50">50 km</option>
+                            <option value="100">100 km</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="nearbyResultsContainer">
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-geo fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                        <p class="small mb-0">Click "Detect My Current Location" or click anywhere on the map to find nearby tourist destinations.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trip Planner Tab Pane -->
+            <div class="tab-pane fade" id="pane-trip" role="tabpanel">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold small text-dark"><i class="bi bi-signpost-2-fill text-success me-1"></i>Custom Itinerary</span>
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2" id="clearTripBtn" title="Clear stops">Clear</button>
+                </div>
+
+                <!-- Mode & Actions -->
+                <div class="btn-group btn-group-sm w-100 mb-3 shadow-sm" role="group">
+                    <input type="radio" class="btn-check" name="routeMode" id="modeDriving" value="driving" checked>
+                    <label class="btn btn-outline-success" for="modeDriving"><i class="bi bi-car-front-fill me-1"></i>Drive</label>
+                    <input type="radio" class="btn-check" name="routeMode" id="modeWalking" value="walking">
+                    <label class="btn btn-outline-success" for="modeWalking"><i class="bi bi-person-walking me-1"></i>Walk</label>
+                </div>
+
+                <!-- Stops List -->
+                <div id="tripStopsContainer">
+                    <div class="text-center py-4 text-muted border rounded-3 p-3 bg-light">
+                        <i class="bi bi-pin-map fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                        <p class="small mb-0">Your trip itinerary is empty. Click <strong>"Add to Trip"</strong> on any destination to build an intelligent route.</p>
+                    </div>
+                </div>
+
+                <!-- Route Metrics Box -->
+                <div id="tripMetricsBox" class="card border-0 bg-success bg-opacity-10 p-3 mt-3 rounded-3 d-none">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="small text-muted">Total Distance:</span>
+                        <strong class="text-success" id="tripDistanceVal">0 km</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="small text-muted">Est. Travel Time:</span>
+                        <strong class="text-dark" id="tripDurationVal">0 mins</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="small text-muted">Route Engine:</span>
+                        <span class="badge bg-success" id="tripEngineVal">OSRM Routing</span>
+                    </div>
+                    <button class="btn btn-kerala-primary btn-sm w-100 fw-semibold mt-2" id="saveTripBtn">
+                        <i class="bi bi-bookmark-check-fill me-1"></i>Save Trip Itinerary
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Central Map Viewport -->
+    <main class="map-viewport-wrapper">
+        <!-- Floating Left Controls -->
+        <div class="map-floating-bar map-floating-bar-left">
+            <button class="btn-map-control" id="toggleSidebarBtn" title="Toggle Sidebar">
+                <i class="bi bi-layout-sidebar-inset"></i>
+                <span class="d-none d-sm-inline">Panel</span>
+            </button>
+            <button class="btn-map-control" id="locateMeBtn" title="Detect GPS Location">
+                <i class="bi bi-crosshair text-primary"></i>
+                <span class="d-none d-sm-inline">Locate Me</span>
+            </button>
+        </div>
+
+        <!-- Floating Right Controls -->
+        <div class="map-floating-bar map-floating-bar-right">
+            <button class="btn-map-control" id="resetBoundsBtn" title="Reset to Kerala Center">
+                <i class="bi bi-arrows-angle-contract"></i>
+                <span class="d-none d-sm-inline">Reset View</span>
+            </button>
+            <button class="btn-map-control" id="fullScreenBtn" title="Toggle Fullscreen">
+                <i class="bi bi-fullscreen"></i>
+            </button>
+        </div>
+
+        <!-- Leaflet Map Container -->
+        <div id="kerala-interactive-map"></div>
+
+        <!-- Right Side Destination Details Drawer -->
+        <div class="map-detail-drawer" id="destinationDetailDrawer">
+            <div class="drawer-img-header">
+                <img id="drawerImage" src="" alt="Destination">
+                <button class="drawer-close-btn" id="drawerCloseBtn" title="Close Panel">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="p-4 flex-grow-1 d-flex flex-column">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="badge bg-success" id="drawerCategory">Category</span>
+                    <span class="badge bg-light text-dark border" id="drawerDistrict">District</span>
+                </div>
+                <h4 class="fw-bold font-heading mb-1 text-dark" id="drawerTitle">Destination Name</h4>
+                <p class="small text-muted mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="drawerLocality">Locality</span></p>
+
+                <!-- Verification Provenance Box -->
+                <div class="p-2 mb-3 bg-light rounded-3 border small">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="text-success fw-bold"><i class="bi bi-patch-check-fill me-1"></i>VERIFIED DESTINATION</span>
+                        <span class="text-muted" id="drawerVerifiedDate">Verified</span>
+                    </div>
+                    <div class="text-muted mt-1" style="font-size: 0.78rem;">
+                        Source: <span id="drawerSource">Official Government Tourism Records</span>
+                    </div>
+                </div>
+
+                <!-- Distance from User -->
+                <div id="drawerDistanceBox" class="alert alert-info py-2 px-3 small d-none mb-3">
+                    <i class="bi bi-signpost-split me-1"></i>
+                    <strong><span id="drawerDistanceKm">0.0</span> km</strong> from your current GPS position (straight-line)
+                </div>
+
+                <!-- Key Facts Grid -->
+                <div class="row g-2 mb-3 small">
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded-2 border">
+                            <span class="text-muted d-block" style="font-size: 0.75rem;">Visiting Hours</span>
+                            <strong class="text-dark" id="drawerHours">Open Daily</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded-2 border">
+                            <span class="text-muted d-block" style="font-size: 0.75rem;">Entry Fee</span>
+                            <strong class="text-dark" id="drawerFee">Free / Verified</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <p class="small text-secondary mb-3" id="drawerDesc">Description goes here.</p>
+
+                <!-- Activities -->
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Activities & Highlights:</label>
+                    <div id="drawerActivities" class="d-flex flex-wrap gap-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-auto d-flex flex-column gap-2">
+                    <button class="btn btn-kerala-primary w-100 fw-semibold" id="drawerAddToTripBtn">
+                        <i class="bi bi-plus-circle me-1"></i>Add to Trip Itinerary
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary flex-fill btn-sm" id="drawerDirectionsBtn">
+                            <i class="bi bi-sign-turn-right me-1"></i>Route Here
+                        </button>
+                        <a href="#" class="btn btn-outline-secondary flex-fill btn-sm" id="drawerViewFullBtn" target="_blank">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Full Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal for Saving Trip -->
+<div class="modal fade" id="saveTripModal" tabindex="-1" aria-labelledby="saveTripModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title font-heading fw-bold" id="saveTripModalLabel">
+                    <i class="bi bi-bookmark-plus text-success me-2"></i>Save Trip Itinerary
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Save your custom Kerala route to your tourist profile to access it on future journeys.</p>
+                <div class="mb-3">
+                    <label for="tripTitleInput" class="form-label small fw-bold">Itinerary Title</label>
+                    <input type="text" class="form-control" id="tripTitleInput" placeholder="e.g. Coastal & Hill Explorer">
+                </div>
+                <div class="mb-3">
+                    <label for="tripNotesInput" class="form-label small fw-bold">Personal Travel Notes (Optional)</label>
+                    <textarea class="form-control" id="tripNotesInput" rows="2" placeholder="e.g. Plan to start early morning to catch the sunset at Kovalam."></textarea>
+                </div>
+                <div id="saveTripAlert" class="alert d-none small mb-0"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-kerala-primary" id="confirmSaveTripBtn">Save Itinerary</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Embed initial verified destinations dataset -->
+{{ destinations_json|json_script:"initial-destinations-data" }}
+{% endblock %}
+
+{% block footer %}
+<!-- Suppress full footer on interactive map view for clean full-screen experience -->
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- MarkerCluster JS -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 1. Data Store Initialization
+    const rawDataElem = document.getElementById('initial-destinations-data');
+    let allDestinations = rawDataElem ? JSON.parse(rawDataElem.textContent) : [];
+    let visibleDestinations = [...allDestinations];
+    let userLocation = null; // { lat, lng }
+    let tripStops = []; // array of destination objects
+    let currentRoutePolyline = null;
+    let routeWaypointMarkers = [];
+    let selectedDestination = null;
+
+    // Authentication state passed from Django
+    const isUserAuthenticated = {{ user.is_authenticated|yesno:"true,false" }};
+    const csrfToken = '{{ csrf_token }}';
+
+    // 2. Leaflet Map Setup with Approved Keyless Basemaps
+    const map = L.map('kerala-interactive-map', {
+        center: [9.35, 76.85], // Kerala geographic center
+        zoom: 8,
+        minZoom: 6,
+        maxZoom: 18,
+        zoomControl: false // custom position
+    });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Layer 1: Esri World Street Map (Keyless, High Precision)
+    const esriStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Layer 2: OpenTopoMap
+    const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: 'Map data &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+    });
+
+    // Layer 3: Esri World Imagery (Satellite)
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+    });
+
+    L.control.layers({
+        "Street Map": esriStreet,
+        "Topographic": openTopo,
+        "Satellite": esriSatellite
+    }, null, { position: 'topright' }).addTo(map);
+
+    // 3. Category Color Palette & Icon Mapping
+    const categoryColors = {
+        'beaches': '#0284c7',       // Sky blue
+        'waterfalls': '#0d9488',    // Teal
+        'hill-stations': '#16a34a', // Emerald green
+        'dams-and-lakes': '#0891b2',// Cyan
+        'temples-and-heritage': '#d97706', // Amber
+        'wildlife': '#65a30d',      // Lime
+        'museums-and-culture': '#7c3aed', // Purple
+        'default': '#0b6e4f'        // Dark emerald
+    };
+
+    function getCategoryColor(slug) {
+        if (!slug) return categoryColors.default;
+        for (const [key, color] of Object.entries(categoryColors)) {
+            if (slug.includes(key)) return color;
+        }
+        return categoryColors.default;
+    }
+
+    function createCustomPin(catSlug, iconClass) {
+        const color = getCategoryColor(catSlug);
+        const icon = iconClass || 'bi-geo-alt';
+        const html = `
+            <div class="custom-map-pin" style="background-color: ${color};">
+                <i class="bi ${icon}"></i>
+            </div>
+        `;
+        return L.divIcon({
+            className: 'custom-pin-wrapper',
+            html: html,
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36]
+        });
+    }
+
+    // 4. Marker Clustering
+    const markerClusterGroup = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 45,
+        spiderfyOnMaxZoom: true,
+        iconCreateFunction: function (cluster) {
+            const count = cluster.getChildCount();
+            return L.divIcon({
+                html: `<div style="background: rgba(11, 110, 79, 0.9); color: #fff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">${count}</div>`,
+                className: 'marker-cluster-custom',
+                iconSize: L.point(36, 36)
+            });
+        }
+    });
+    map.addLayer(markerClusterGroup);
+
+    let destinationMarkersMap = {}; // id -> marker
+
+    function populateMarkers(destinations) {
+        markerClusterGroup.clearLayers();
+        destinationMarkersMap = {};
+
+        destinations.forEach(dest => {
+            if (!dest.lat || !dest.lng) return;
+
+            const icon = createCustomPin(dest.category_slug, dest.category_icon);
+            const marker = L.marker([dest.lat, dest.lng], { icon: icon });
+
+            const popupContent = `
+                <div style="font-family: 'Plus Jakarta Sans', sans-serif; min-width: 200px;">
+                    <img src="${dest.image_url}" alt="${dest.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 6px;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
+                    <span style="font-size: 0.75rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${dest.category}</span>
+                    <h6 style="margin: 6px 0 2px 0; font-weight: 700; font-size: 0.95rem;">${dest.name}</h6>
+                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;"><i class="bi bi-geo-alt text-danger me-1"></i>${dest.locality}</p>
+                    <button class="btn btn-kerala-primary btn-sm w-100 py-1" onclick="window.selectDestinationById(${dest.id})">View Details</button>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+            marker.on('click', () => {
+                openDestinationDrawer(dest);
+            });
+
+            markerClusterGroup.addLayer(marker);
+            destinationMarkersMap[dest.id] = marker;
+        });
+
+        document.getElementById('visibleCountBadge').textContent = `${destinations.length} Places`;
+    }
+
+    // 5. Sidebar Destination Cards Rendering
+    function renderDestinationsList(destinations) {
+        const container = document.getElementById('destinationsListContainer');
+        if (!destinations || destinations.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-search fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                    <p class="small">No verified destinations match your current filter criteria.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        destinations.forEach(dest => {
+            const distanceBadge = dest.distance_km 
+                ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem;"><i class="bi bi-cursor me-1"></i>${dest.distance_km} km</span>` 
+                : '';
+
+            html += `
+                <div class="dest-mini-card" onclick="window.selectDestinationById(${dest.id})">
+                    <img class="dest-mini-thumb" src="${dest.image_url}" alt="${dest.name}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="badge bg-success bg-opacity-10 text-success" style="font-size: 0.72rem;">${dest.category}</span>
+                            ${distanceBadge}
+                        </div>
+                        <h6 class="mb-1 text-truncate fw-bold text-dark" style="font-size: 0.92rem;">${dest.name}</h6>
+                        <p class="small text-muted mb-1 text-truncate"><i class="bi bi-geo-alt me-1 text-danger"></i>${dest.locality || dest.district}</p>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <small class="text-success fw-semibold" style="font-size: 0.75rem;">${dest.entry_fee}</small>
+                            <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size: 0.75rem;" onclick="event.stopPropagation(); window.addToTrip(${dest.id})">
+                                + Trip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    // 6. Right Sliding Detail Panel
+    function openDestinationDrawer(dest) {
+        selectedDestination = dest;
+        document.getElementById('drawerImage').src = dest.image_url;
+        document.getElementById('drawerTitle').textContent = dest.name;
+        document.getElementById('drawerCategory').textContent = dest.category;
+        document.getElementById('drawerDistrict').textContent = dest.district;
+        document.getElementById('drawerLocality').textContent = dest.locality || dest.district;
+        document.getElementById('drawerVerifiedDate').textContent = dest.last_verified_date ? `Verified ${dest.last_verified_date}` : 'Verified';
+        document.getElementById('drawerSource').textContent = dest.source_name || 'Official Tourism Authority';
+        document.getElementById('drawerHours').textContent = dest.opening_hours || 'Open Daily';
+        document.getElementById('drawerFee').textContent = dest.entry_fee || 'Free / Verified';
+        document.getElementById('drawerDesc').textContent = dest.short_description;
+        document.getElementById('drawerViewFullBtn').href = dest.detail_url;
+
+        // Distance from user
+        const distBox = document.getElementById('drawerDistanceBox');
+        if (dest.distance_km) {
+            document.getElementById('drawerDistanceKm').textContent = dest.distance_km;
+            distBox.classList.remove('d-none');
+        } else if (userLocation) {
+            const dist = calculateHaversine(userLocation.lat, userLocation.lng, dest.lat, dest.lng);
+            document.getElementById('drawerDistanceKm').textContent = dist.toFixed(1);
+            distBox.classList.remove('d-none');
+        } else {
+            distBox.classList.add('d-none');
+        }
+
+        // Activities
+        const actContainer = document.getElementById('drawerActivities');
+        actContainer.innerHTML = '';
+        if (dest.activities && dest.activities.length > 0) {
+            dest.activities.forEach(act => {
+                const span = document.createElement('span');
+                span.className = 'badge bg-light text-dark border';
+                span.style.fontSize = '0.75rem';
+                span.textContent = act;
+                actContainer.appendChild(span);
+            });
+        } else {
+            actContainer.innerHTML = '<span class="text-muted small">Sightseeing, Photography</span>';
+        }
+
+        document.getElementById('destinationDetailDrawer').classList.add('open');
+    }
+
+    document.getElementById('drawerCloseBtn').addEventListener('click', () => {
+        document.getElementById('destinationDetailDrawer').classList.remove('open');
+    });
+
+    // 7. Filters & Real-time Search Handler
+    function applyFilters() {
+        const query = document.getElementById('mapSearchInput').value.toLowerCase().trim();
+        const districtSlug = document.getElementById('districtFilter').value;
+        const categorySlug = document.getElementById('categoryFilter').value;
+
+        visibleDestinations = allDestinations.filter(dest => {
+            if (districtSlug && dest.district_slug !== districtSlug) return false;
+            if (categorySlug && dest.category_slug !== categorySlug) return false;
+            if (query) {
+                const matchName = dest.name.toLowerCase().includes(query);
+                const matchLoc = dest.locality ? dest.locality.toLowerCase().includes(query) : false;
+                const matchDesc = dest.short_description ? dest.short_description.toLowerCase().includes(query) : false;
+                const matchAct = dest.activities ? dest.activities.some(a => a.toLowerCase().includes(query)) : false;
+                if (!matchName && !matchLoc && !matchDesc && !matchAct) return false;
+            }
+            return true;
+        });
+
+        // Recalculate distances if user location exists
+        if (userLocation) {
+            visibleDestinations.forEach(dest => {
+                dest.distance_km = parseFloat(calculateHaversine(userLocation.lat, userLocation.lng, dest.lat, dest.lng).toFixed(1));
+            });
+            // If nearby tab is active, sort by distance
+            const nearbyActive = document.getElementById('pane-nearby').classList.contains('active');
+            if (nearbyActive) {
+                visibleDestinations.sort((a, b) => a.distance_km - b.distance_km);
+            }
+        }
+
+        populateMarkers(visibleDestinations);
+        renderDestinationsList(visibleDestinations);
+
+        // Fit map bounds to filtered items
+        if (visibleDestinations.length > 0) {
+            const bounds = L.latLngBounds(visibleDestinations.map(d => [d.lat, d.lng]));
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        }
+    }
+
+    document.getElementById('mapSearchInput').addEventListener('input', applyFilters);
+    document.getElementById('districtFilter').addEventListener('change', applyFilters);
+    document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+    document.getElementById('clearSearchBtn').addEventListener('click', () => {
+        document.getElementById('mapSearchInput').value = '';
+        applyFilters();
+    });
+    document.getElementById('resetFiltersBtn').addEventListener('click', () => {
+        document.getElementById('mapSearchInput').value = '';
+        document.getElementById('districtFilter').value = '';
+        document.getElementById('categoryFilter').value = '';
+        applyFilters();
+    });
+
+    // 8. Haversine Math
+    function calculateHaversine(lat1, lon1, lat2, lon2) {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // 9. GPS Geolocation Integration
+    let userMarker = null;
+    let userCircle = null;
+
+    function detectUserLocation() {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser.");
+            return;
+        }
+
+        const gpsPill = document.getElementById('gpsStatusPill');
+        gpsPill.className = 'badge bg-warning text-dark';
+        gpsPill.textContent = 'Locating GPS...';
+
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                userLocation = { lat, lng };
+
+                gpsPill.className = 'badge bg-success';
+                gpsPill.textContent = 'GPS Active';
+
+                // Add or update pulse marker
+                if (userMarker) map.removeLayer(userMarker);
+                if (userCircle) map.removeLayer(userCircle);
+
+                const pulseIcon = L.divIcon({
+                    className: 'gps-pulse-wrapper',
+                    html: '<div class="gps-pulse-marker"></div>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                userMarker = L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
+                userMarker.bindPopup("<strong>You are here</strong><br><small class='text-muted'>Live GPS Coordinates</small>");
+
+                const radiusKm = parseFloat(document.getElementById('nearbyRadiusSelect').value) || 25;
+                userCircle = L.circle([lat, lng], {
+                    radius: radiusKm * 1000,
+                    color: '#2563eb',
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.08,
+                    weight: 1.5,
+                    dashArray: '6, 6'
+                }).addTo(map);
+
+                map.setView([lat, lng], 11);
+                updateNearbyResults(lat, lng, radiusKm);
+                applyFilters();
+            },
+            error => {
+                gpsPill.className = 'badge bg-danger';
+                gpsPill.textContent = 'GPS Denied / Unavailable';
+                console.warn("GPS error:", error.message);
+                // Fallback to Thiruvananthapuram center for simulation if denied
+                const fallbackLat = 8.5241;
+                const fallbackLng = 76.9366;
+                userLocation = { lat: fallbackLat, lng: fallbackLng };
+                updateNearbyResults(fallbackLat, fallbackLng, 25);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    }
+
+    document.getElementById('locateMeBtn').addEventListener('click', detectUserLocation);
+    document.getElementById('sidebarLocateBtn').addEventListener('click', detectUserLocation);
+
+    function updateNearbyResults(lat, lng, radiusKm) {
+        const nearby = [];
+        allDestinations.forEach(dest => {
+            const d = calculateHaversine(lat, lng, dest.lat, dest.lng);
+            if (d <= radiusKm) {
+                nearby.push({ ...dest, distance_km: parseFloat(d.toFixed(1)) });
+            }
+        });
+
+        nearby.sort((a, b) => a.distance_km - b.distance_km);
+
+        const container = document.getElementById('nearbyResultsContainer');
+        if (nearby.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-geo-alt fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                    <p class="small">No verified attractions found within ${radiusKm} km radius. Try increasing the radius selector.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `<div class="mb-2 text-muted small fw-semibold">Found ${nearby.length} places within ${radiusKm} km:</div>`;
+        nearby.forEach(dest => {
+            html += `
+                <div class="dest-mini-card" onclick="window.selectDestinationById(${dest.id})">
+                    <img class="dest-mini-thumb" src="${dest.image_url}" alt="${dest.name}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="badge bg-success bg-opacity-10 text-success" style="font-size: 0.72rem;">${dest.category}</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem;">
+                                <i class="bi bi-cursor me-1"></i>${dest.distance_km} km
+                            </span>
+                        </div>
+                        <h6 class="mb-1 text-truncate fw-bold text-dark" style="font-size: 0.92rem;">${dest.name}</h6>
+                        <p class="small text-muted mb-1 text-truncate"><i class="bi bi-geo-alt me-1 text-danger"></i>${dest.locality}</p>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <small class="text-success fw-semibold" style="font-size: 0.75rem;">${dest.entry_fee}</small>
+                            <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size: 0.75rem;" onclick="event.stopPropagation(); window.addToTrip(${dest.id})">
+                                + Trip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    document.getElementById('nearbyRadiusSelect').addEventListener('change', function () {
+        if (userLocation) {
+            const radius = parseFloat(this.value);
+            if (userCircle) userCircle.setRadius(radius * 1000);
+            updateNearbyResults(userLocation.lat, userLocation.lng, radius);
+        }
+    });
+
+    // 10. Multi-Stop Route Planning & Trip Builder
+    window.addToTrip = function (destId) {
+        const dest = allDestinations.find(d => d.id === destId);
+        if (!dest) return;
+
+        if (tripStops.some(s => s.id === dest.id)) {
+            alert(`"${dest.name}" is already in your trip.`);
+            return;
+        }
+
+        tripStops.push(dest);
+        renderTripStops();
+
+        // Switch to Trip tab
+        const tripTab = new bootstrap.Tab(document.getElementById('tab-trip-btn'));
+        tripTab.show();
+
+        if (tripStops.length >= 2) {
+            calculateTripRoute();
+        }
+    };
+
+    window.removeTripStop = function (index) {
+        tripStops.splice(index, 1);
+        renderTripStops();
+        if (tripStops.length >= 2) {
+            calculateTripRoute();
+        } else {
+            clearRouteGraphics();
+        }
+    };
+
+    window.moveTripStop = function (index, direction) {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= tripStops.length) return;
+        const temp = tripStops[index];
+        tripStops[index] = tripStops[targetIndex];
+        tripStops[targetIndex] = temp;
+        renderTripStops();
+        calculateTripRoute();
+    };
+
+    function renderTripStops() {
+        document.getElementById('tripCountBadge').textContent = tripStops.length;
+        const container = document.getElementById('tripStopsContainer');
+
+        if (tripStops.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4 text-muted border rounded-3 p-3 bg-light">
+                    <i class="bi bi-pin-map fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                    <p class="small mb-0">Your trip itinerary is empty. Click <strong>"Add to Trip"</strong> on any destination to build an intelligent route.</p>
+                </div>
+            `;
+            document.getElementById('tripMetricsBox').classList.add('d-none');
+            return;
+        }
+
+        let html = '';
+        tripStops.forEach((stop, idx) => {
+            html += `
+                <div class="trip-stop-item">
+                    <span class="stop-badge">${idx + 1}</span>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <strong class="d-block text-truncate small text-dark">${stop.name}</strong>
+                        <span class="text-muted" style="font-size: 0.75rem;">${stop.locality || stop.district}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        ${idx > 0 ? `<button class="btn btn-sm btn-link p-0 text-muted" onclick="window.moveTripStop(${idx}, -1)" title="Move up"><i class="bi bi-arrow-up-short fs-5"></i></button>` : ''}
+                        ${idx < tripStops.length - 1 ? `<button class="btn btn-sm btn-link p-0 text-muted" onclick="window.moveTripStop(${idx}, 1)" title="Move down"><i class="bi bi-arrow-down-short fs-5"></i></button>` : ''}
+                        <button class="btn btn-sm btn-link p-0 text-danger" onclick="window.removeTripStop(${idx})" title="Remove"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        document.getElementById('tripMetricsBox').classList.remove('d-none');
+    }
+
+    document.getElementById('clearTripBtn').addEventListener('click', () => {
+        tripStops = [];
+        renderTripStops();
+        clearRouteGraphics();
+    });
+
+    function clearRouteGraphics() {
+        if (currentRoutePolyline) {
+            map.removeLayer(currentRoutePolyline);
+            currentRoutePolyline = null;
+        }
+        routeWaypointMarkers.forEach(m => map.removeLayer(m));
+        routeWaypointMarkers = [];
+        document.getElementById('tripMetricsBox').classList.add('d-none');
+    }
+
+    // Call server-side OSRM proxy endpoint
+    async function calculateTripRoute() {
+        if (tripStops.length < 2) return;
+
+        const coordsStr = tripStops.map(s => `${s.lng},${s.lat}`).join(';');
+        const mode = document.querySelector('input[name="routeMode"]:checked').value;
+
+        try {
+            const resp = await fetch(`/destinations/api/route/?coordinates=${encodeURIComponent(coordsStr)}&profile=${mode}`);
+            const data = await resp.json();
+
+            if (data.status === 'success') {
+                renderRouteOnMap(data);
+            }
+        } catch (err) {
+            console.error("Route calculation error:", err);
+        }
+    }
+
+    function renderRouteOnMap(routeData) {
+        clearRouteGraphics();
+
+        // Convert GeoJSON coordinates [lng, lat] to Leaflet [lat, lng]
+        const latLngs = routeData.geometry.coordinates.map(c => [c[1], c[0]]);
+
+        currentRoutePolyline = L.polyline(latLngs, {
+            color: '#0b6e4f',
+            weight: 5,
+            opacity: 0.85,
+            lineJoin: 'round'
+        }).addTo(map);
+
+        map.fitBounds(currentRoutePolyline.getBounds(), { padding: [50, 50] });
+
+        // Update Metrics Box
+        document.getElementById('tripMetricsBox').classList.remove('d-none');
+        document.getElementById('tripDistanceVal').textContent = `${routeData.distance_km} km`;
+        
+        const hours = Math.floor(routeData.duration_min / 60);
+        const mins = routeData.duration_min % 60;
+        const timeText = hours > 0 ? `${hours} hr ${mins} min` : `${mins} min`;
+        document.getElementById('tripDurationVal').textContent = timeText;
+
+        const engineBadge = document.getElementById('tripEngineVal');
+        if (routeData.is_fallback) {
+            engineBadge.className = 'badge bg-secondary';
+            engineBadge.textContent = 'Estimated Route';
+        } else {
+            engineBadge.className = 'badge bg-success';
+            engineBadge.textContent = 'OSRM Verified Road';
+        }
+
+        // Add numbered waypoint markers on map
+        tripStops.forEach((stop, idx) => {
+            const wpIcon = L.divIcon({
+                className: 'waypoint-pin',
+                html: `<div style="background: #074732; color: #fff; border: 2px solid #fff; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+            const m = L.marker([stop.lat, stop.lng], { icon: wpIcon }).addTo(map);
+            m.bindPopup(`<strong>Stop ${idx + 1}: ${stop.name}</strong>`);
+            routeWaypointMarkers.push(m);
+        });
+    }
+
+    document.querySelectorAll('input[name="routeMode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (tripStops.length >= 2) calculateTripRoute();
+        });
+    });
+
+    // 11. Save Trip Itinerary
+    const saveTripModal = new bootstrap.Modal(document.getElementById('saveTripModal'));
+    document.getElementById('saveTripBtn').addEventListener('click', () => {
+        if (!isUserAuthenticated) {
+            if (confirm("Please sign in or register to save your trip itinerary to your profile. Would you like to go to the login page?")) {
+                window.location.href = "{% url 'accounts:login' %}?next={% url 'destinations:kerala_map' %}";
+            }
+            return;
+        }
+        document.getElementById('saveTripAlert').classList.add('d-none');
+        saveTripModal.show();
+    });
+
+    document.getElementById('confirmSaveTripBtn').addEventListener('click', async () => {
+        const title = document.getElementById('tripTitleInput').value.trim() || 'My Kerala Tour';
+        const notes = document.getElementById('tripNotesInput').value.trim();
+        const alertBox = document.getElementById('saveTripAlert');
+
+        const distanceText = document.getElementById('tripDistanceVal').textContent.replace(' km', '');
+        const totalDistance = parseFloat(distanceText) || 0.0;
+
+        const payload = {
+            title: title,
+            notes: notes,
+            destination_ids: tripStops.map(s => s.id),
+            total_distance_km: totalDistance,
+            estimated_duration_min: 60
+        };
+
+        try {
+            const resp = await fetch("{% url 'destinations:api_save_trip' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+            const res = await resp.json();
+
+            if (res.status === 'success') {
+                alertBox.className = 'alert alert-success small mb-0';
+                alertBox.textContent = res.message;
+                alertBox.classList.remove('d-none');
+                setTimeout(() => {
+                    saveTripModal.hide();
+                }, 1500);
+            } else {
+                alertBox.className = 'alert alert-danger small mb-0';
+                alertBox.textContent = res.message || 'Error saving trip.';
+                alertBox.classList.remove('d-none');
+            }
+        } catch (e) {
+            alertBox.className = 'alert alert-danger small mb-0';
+            alertBox.textContent = 'Server communication error.';
+            alertBox.classList.remove('d-none');
+        }
+    });
+
+    // 12. Map Controls & Interactions
+    window.selectDestinationById = function (destId) {
+        const dest = allDestinations.find(d => d.id === destId);
+        if (!dest) return;
+
+        openDestinationDrawer(dest);
+
+        map.setView([dest.lat, dest.lng], 14, { animate: true });
+
+        const marker = destinationMarkersMap[dest.id];
+        if (marker) {
+            markerClusterGroup.zoomToShowLayer(marker, () => {
+                marker.openPopup();
+            });
+        }
+    };
+
+    document.getElementById('drawerAddToTripBtn').addEventListener('click', () => {
+        if (selectedDestination) {
+            window.addToTrip(selectedDestination.id);
+        }
+    });
+
+    document.getElementById('drawerDirectionsBtn').addEventListener('click', () => {
+        if (!selectedDestination) return;
+        if (userLocation) {
+            // Plan route from user location to selected destination
+            const coordsStr = `${userLocation.lng},${userLocation.lat};${selectedDestination.lng},${selectedDestination.lat}`;
+            fetch(`/destinations/api/route/?coordinates=${encodeURIComponent(coordsStr)}&profile=driving`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        renderRouteOnMap(data);
+                    }
+                });
+        } else {
+            // Prompt to detect location
+            detectUserLocation();
+        }
+    });
+
+    // Sidebar Toggle
+    const sidebar = document.getElementById('mapSidebar');
+    document.getElementById('toggleSidebarBtn').addEventListener('click', () => {
+        if (window.innerWidth < 992) {
+            sidebar.classList.toggle('open-mobile');
+        } else {
+            sidebar.classList.toggle('collapsed');
+        }
+        setTimeout(() => map.invalidateSize(), 300);
+    });
+
+    // Reset View
+    document.getElementById('resetBoundsBtn').addEventListener('click', () => {
+        map.setView([9.35, 76.85], 8);
+    });
+
+    // Fullscreen Toggle
+    document.getElementById('fullScreenBtn').addEventListener('click', () => {
+        const elem = document.querySelector('.map-app-shell');
+        if (!document.fullscreenElement) {
+            elem.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // Initial Render
+    populateMarkers(allDestinations);
+    renderDestinationsList(allDestinations);
+
+    // Initial check for hash or query param (e.g. ?place=kovalam)
+    const urlParams = new URLSearchParams(window.location.search);
+    const placeParam = urlParams.get('place');
+    if (placeParam) {
+        const matched = allDestinations.find(d => d.slug === placeParam);
+        if (matched) {
+            setTimeout(() => window.selectDestinationById(matched.id), 500);
+        }
+    }
+});
+</script>
+{% endblock %}

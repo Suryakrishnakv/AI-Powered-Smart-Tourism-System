@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import District, Category, Destination, DestinationImage
+from .models import District, Category, Destination, DestinationImage, SavedTrip, SavedTripStop
 from core.models import VerificationStatus
 
 
@@ -47,6 +47,20 @@ class DestinationAdmin(admin.ModelAdmin):
     @admin.action(description="Mark selected destinations as EXPIRED")
     def mark_as_expired(self, request, queryset):
         queryset.update(verification_status=VerificationStatus.EXPIRED)
+
+
+class SavedTripStopInline(admin.TabularInline):
+    model = SavedTripStop
+    extra = 0
+    ordering = ('stop_order',)
+
+
+@admin.register(SavedTrip)
+class SavedTripAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'total_distance_km', 'estimated_duration_min', 'is_public', 'created_at')
+    search_fields = ('title', 'user__username', 'notes')
+    list_filter = ('is_public', 'created_at')
+    inlines = [SavedTripStopInline]
 
 
 @admin.register(DestinationImage)

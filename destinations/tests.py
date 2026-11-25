@@ -199,3 +199,124 @@ class KollamDestinationsTests(TestCase):
         self.assertEqual(Destination.objects.filter(district=self.kollam_district).count(), 50)
         self.assertEqual(Destination.objects.count(), 100)
 
+
+class KeralaInteractiveMapTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+
+    def setUp(self):
+        self.client = Client()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username='tourist_test',
+            email='tourist_test@example.com',
+            password='TestPassword123!'
+        )
+
+    def test_01_kerala_map_page_loads_with_all_destinations(self):
+        """Verify the full-screen Kerala Interactive Map page loads with all 100 destinations."""
+        url = reverse('destinations:kerala_map')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Kerala Tourism Map")
+        self.assertContains(response, "kerala-interactive-map")
+        self.assertContains(response, "initial-destinations-data")
+        self.assertEqual(response.context['total_destinations_count'], 100)
+        self.assertIn("Kovalam Beach", response.context['destinations_json'])
+        self.assertIn("Jatayu Earth's Center", response.context['destinations_json'])
+
+    def test_02_api_destinations_list_and_filters(self):
+        """Verify API destination list returns JSON and respects filters."""
+        url = reverse('destinations:api_destinations_list')
+
+        # All destinations
+        res_all = self.client.get(url)
+        self.assertEqual(res_all.status_code, 200)
+        data_all = res_all.json()
+        self.assertEqual(data_all['status'], 'success')
+        self.assertEqual(data_all['count'], 100)
+
+        # District filter: Kollam only
+        res_kollam = self.client.get(url, {'district': 'kollam'})
+        data_kollam = res_kollam.json()
+        self.assertEqual(data_kollam['count'], 50)
+        for dest in data_kollam['destinations']:
+            self.assertEqual(dest['district_slug'], 'kollam')
+
+        # Query search
+        res_search = self.client.get(url, {'q': 'Ponmudi'})
+        data_search = res_search.json()
+        self.assertGreaterEqual(data_search['count'], 1)
+        search_names = [d['name'] for d in data_search['destinations']]
+        self.assertIn('Ponmudi Hill Station', search_names)
+
+    def test_03_api_nearby_destinations_haversine(self):
+        """Verify nearby API calculates distances from GPS coordinates accurately and sorts closest first."""
+        url = reverse('destinations:api_nearby_destinations')
+        # Thiruvananthapuram center GPS: 8.5241 N, 76.9366 E
+        res = self.client.get(url, {'lat': '8.5241', 'lng': '76.9366', 'radius': '15'})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertGreater(data['count'], 0)
+        
+        # Verify sorted ascending by distance
+        distances = [d['distance_km'] for d in data['destinations']]
+        self.assertEqual(distances, sorted(distances))
+        self.assertEqual(data['destinations'][0]['distance_type'], 'straight_line_haversine')
+
+    def test_04_api_route_proxy_returns_geometry_and_metrics(self):
+        """Verify route proxy API calculates multi-stop route metrics and valid GeoJSON geometry."""
+        url = reverse('destinations:api_route_proxy')
+        # Route from Kovalam Beach (76.97, 8.40) to Napier Museum (76.95, 8.51)
+        res = self.client.get(url, {'coordinates': '76.9786,8.4021;76.9553,8.5147', 'profile': 'driving'})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertIn('distance_km', data)
+        self.assertGreater(data['distance_km'], 10.0) # roughly 13-18 km road distance
+        self.assertGreater(data['duration_min'], 10)
+        self.assertEqual(data['geometry']['type'], 'LineString')
+        self.assertGreaterEqual(len(data['geometry']['coordinates']), 2)
+
+    def test_05_api_save_trip_and_list_lifecycle(self):
+        """Verify trip itinerary saving lifecycle: anonymous rejection, authenticated save, and retrieval."""
+        save_url = reverse('destinations:api_save_trip')
+        list_url = reverse('destinations:api_list_trips')
+
+        d1 = Destination.objects.first()
+        d2 = Destination.objects.last()
+
+        payload = {
+            'title': 'Southern Kerala Explorer',
+            'notes': 'Scenic coastal and heritage tour',
+            'destination_ids': [d1.id, d2.id],
+            'total_distance_km': 65.5,
+            'estimated_duration_min': 95
+        }
+
+        # Anonymous save attempt must return 401
+        res_anon = self.client.post(save_url, data=payload, content_type='application/json')
+        self.assertEqual(res_anon.status_code, 401)
+
+        # Authenticate user and save
+        self.client.force_login(self.user)
+        res_auth = self.client.post(save_url, data=payload, content_type='application/json')
+        self.assertEqual(res_auth.status_code, 200)
+        res_data = res_auth.json()
+        self.assertEqual(res_data['status'], 'success')
+        self.assertIn('trip_id', res_data)
+
+        # List trips for user
+        res_list = self.client.get(list_url)
+        self.assertEqual(res_list.status_code, 200)
+        list_data = res_list.json()
+        self.assertEqual(list_data['status'], 'success')
+        self.assertEqual(len(list_data['trips']), 1)
+        self.assertEqual(list_data['trips'][0]['title'], 'Southern Kerala Explorer')
+        self.assertEqual(list_data['trips'][0]['stops_count'], 2)
+
+

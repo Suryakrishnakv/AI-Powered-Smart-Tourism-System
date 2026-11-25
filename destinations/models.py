@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from core.models import VerifiableDataModel
@@ -148,3 +149,57 @@ class DestinationImage(models.Model):
         if self.image:
             return self.image.url
         return self.image_url
+
+
+class SavedTrip(models.Model):
+    """
+    Tourist-saved trip itinerary containing ordered destinations.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='saved_trips',
+        verbose_name="Tourist User"
+    )
+    title = models.CharField(max_length=200, default="My Kerala Trip", verbose_name="Trip Title")
+    notes = models.TextField(blank=True, verbose_name="Trip Notes")
+    total_distance_km = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=0.0,
+        verbose_name="Total Route Distance (km)"
+    )
+    estimated_duration_min = models.IntegerField(
+        default=0,
+        verbose_name="Estimated Duration (Minutes)"
+    )
+    is_public = models.BooleanField(default=False, verbose_name="Shared Publicly")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Saved Trip Itinerary"
+        verbose_name_plural = "Saved Trip Itineraries"
+
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"
+
+
+class SavedTripStop(models.Model):
+    """
+    Ordered stop within a SavedTrip.
+    """
+    trip = models.ForeignKey(SavedTrip, on_delete=models.CASCADE, related_name='stops')
+    destination = models.ForeignKey(Destination, on_delete=models.CASCADE, related_name='trip_stops')
+    stop_order = models.PositiveIntegerField(default=1, verbose_name="Stop Order")
+    custom_notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['stop_order']
+        unique_together = ('trip', 'stop_order')
+        verbose_name = "Trip Stop"
+        verbose_name_plural = "Trip Stops"
+
+    def __str__(self):
+        return f"Stop {self.stop_order}: {self.destination.name}"
