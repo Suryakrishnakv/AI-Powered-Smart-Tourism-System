@@ -5,6 +5,9 @@ app_name = 'destinations'
 
 urlpatterns = [
     path('map/', views.kerala_interactive_map_view, name='kerala_map'),
+    path('api/districts-geojson/', views.api_districts_geojson, name='api_districts_geojson'),
+    path('api/autocomplete/', views.api_autocomplete, name='api_autocomplete'),
+    path('api/review/add/', views.api_add_review, name='api_add_review'),
     path('api/destinations/', views.api_destinations_list, name='api_destinations_list'),
     path('api/nearby/', views.api_nearby_destinations, name='api_nearby_destinations'),
     path('api/route/', views.api_route_proxy, name='api_route_proxy'),

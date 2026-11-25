@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import District, Category, Destination, DestinationImage, SavedTrip, SavedTripStop
+from django import forms
+from .models import District, Category, Destination, DestinationImage, SavedTrip, SavedTripStop, DestinationReview
 from core.models import VerificationStatus
 
 
@@ -7,6 +8,31 @@ class DestinationImageInline(admin.TabularInline):
     model = DestinationImage
     extra = 1
     fields = ('image', 'image_url', 'caption', 'source_name', 'license_info', 'photographer_attribution')
+
+
+class DestinationReviewInline(admin.TabularInline):
+    model = DestinationReview
+    extra = 0
+    readonly_fields = ('user', 'rating', 'created_at')
+    fields = ('user', 'rating', 'title', 'comment', 'is_approved', 'created_at')
+
+
+class MissingCoordinatesFilter(admin.SimpleListFilter):
+    title = 'GPS Coordinates Status'
+    parameter_name = 'has_gps'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('missing', 'Missing GPS Coordinates'),
+            ('valid', 'Valid GPS Coordinates'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'missing':
+            return queryset.filter(latitude__isnull=True) | queryset.filter(longitude__isnull=True)
+        if self.value() == 'valid':
+            return queryset.exclude(latitude__isnull=True).exclude(longitude__isnull=True)
+        return queryset
 
 
 @admin.register(District)
@@ -31,10 +57,45 @@ class DestinationAdmin(admin.ModelAdmin):
         'latitude', 'longitude', 'verification_status', 'last_verified_date', 'is_featured'
     )
     search_fields = ('name', 'village_locality', 'full_address', 'source_name')
-    list_filter = ('district', 'category', 'verification_status', 'is_featured')
+    list_filter = ('district', 'category', 'verification_status', MissingCoordinatesFilter, 'is_featured')
     prepopulated_fields = {'slug': ('name',)}
-    inlines = [DestinationImageInline]
+    inlines = [DestinationImageInline, DestinationReviewInline]
     actions = ['mark_as_verified', 'mark_as_pending', 'mark_as_expired']
+
+    fieldsets = (
+        ("Basic Destination Information", {
+            'fields': ('name', 'slug', 'district', 'category', 'short_description', 'detailed_description', 'is_featured')
+        }),
+        ("Location & Verified GPS Coordinates", {
+            'fields': ('village_locality', 'full_address', 'latitude', 'longitude'),
+            'description': "Coordinates must be strictly verified within official Kerala district boundaries."
+        }),
+        ("Photography & Media", {
+            'fields': ('main_image', 'main_image_url', 'image_caption', 'image_attribution')
+        }),
+        ("Visitor Information & Timings", {
+            'fields': (
+                'available_activities', 'entry_fee', 'opening_hours',
+                'weekly_closing_day', 'expected_visit_duration', 'best_time_to_visit',
+                'visitor_guidelines', 'safety_instructions', 'accessibility_info'
+            )
+        }),
+        ("Official Contact Channels", {
+            'fields': ('contact_info', 'official_website', 'official_email')
+        }),
+        ("Data Verification Provenance", {
+            'fields': ('source_name', 'source_url', 'verification_status', 'last_verified_date')
+        }),
+    )
+
+    class Media:
+        css = {
+            'all': ('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',)
+        }
+        js = (
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+            'admin/js/map_picker.js',
+        )
 
     @admin.action(description="Mark selected destinations as VERIFIED")
     def mark_as_verified(self, request, queryset):
@@ -44,9 +105,25 @@ class DestinationAdmin(admin.ModelAdmin):
     def mark_as_pending(self, request, queryset):
         queryset.update(verification_status=VerificationStatus.PENDING)
 
-    @admin.action(description="Mark selected destinations as EXPIRED")
+    @admin.action(description="Mark selected destinations as EXPIRED (Requires Re-verification)")
     def mark_as_expired(self, request, queryset):
         queryset.update(verification_status=VerificationStatus.EXPIRED)
+
+
+@admin.register(DestinationReview)
+class DestinationReviewAdmin(admin.ModelAdmin):
+    list_display = ('destination', 'user', 'rating', 'title', 'is_approved', 'created_at')
+    list_filter = ('rating', 'is_approved', 'created_at')
+    search_fields = ('destination__name', 'user__username', 'comment', 'title')
+    actions = ['approve_reviews', 'reject_reviews']
+
+    @admin.action(description="Approve selected reviews for public display")
+    def approve_reviews(self, request, queryset):
+        queryset.update(is_approved=True)
+
+    @admin.action(description="Hide / Reject selected reviews")
+    def reject_reviews(self, request, queryset):
+        queryset.update(is_approved=False)
 
 
 class SavedTripStopInline(admin.TabularInline):

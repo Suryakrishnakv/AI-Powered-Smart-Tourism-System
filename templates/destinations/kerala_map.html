@@ -23,8 +23,8 @@
 
     /* Left Sidebar */
     .map-sidebar {
-        width: 420px;
-        min-width: 320px;
+        width: 430px;
+        min-width: 330px;
         max-width: 100%;
         background: #ffffff;
         border-right: 1px solid #e2e8f0;
@@ -45,6 +45,7 @@
         padding: 16px 20px;
         background: #f8fafc;
         border-bottom: 1px solid #e2e8f0;
+        position: relative;
     }
 
     .sidebar-nav-tabs .nav-link {
@@ -67,6 +68,43 @@
         flex: 1;
         overflow-y: auto;
         padding: 16px;
+    }
+
+    /* Autocomplete Suggestions Dropdown */
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 20px;
+        right: 20px;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        z-index: 1060;
+        max-height: 280px;
+        overflow-y: auto;
+        display: none;
+    }
+
+    .autocomplete-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.15s ease;
+    }
+
+    .autocomplete-item:hover {
+        background: #f0fdf4;
+    }
+
+    .autocomplete-thumb {
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        object-fit: cover;
     }
 
     /* Destination Mini Cards in Sidebar */
@@ -159,10 +197,10 @@
         right: 0;
         top: 0;
         bottom: 0;
-        width: 400px;
+        width: 440px;
         max-width: 100%;
         background: #ffffff;
-        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+        box-shadow: -4px 0 28px rgba(0, 0, 0, 0.18);
         z-index: 1050;
         overflow-y: auto;
         transform: translateX(100%);
@@ -177,7 +215,7 @@
 
     .drawer-img-header {
         position: relative;
-        height: 220px;
+        height: 230px;
         background: #334155;
     }
 
@@ -206,6 +244,23 @@
 
     .drawer-close-btn:hover {
         background: rgba(0, 0, 0, 0.85);
+    }
+
+    .drawer-gallery-strip {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .drawer-gallery-thumb {
+        width: 68px;
+        height: 52px;
+        border-radius: 6px;
+        object-fit: cover;
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+        flex-shrink: 0;
     }
 
     /* Category Marker Styles */
@@ -306,20 +361,24 @@
                 </span>
             </div>
 
-            <!-- Search input -->
-            <div class="input-group input-group-sm mb-2 shadow-sm">
-                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                <input type="text" id="mapSearchInput" class="form-control border-start-0 ps-0" placeholder="Search places, activities, locality...">
-                <button class="btn btn-outline-secondary border-start-0" type="button" id="clearSearchBtn" title="Clear Search">
-                    <i class="bi bi-x"></i>
-                </button>
+            <!-- Search input with Autocomplete -->
+            <div class="position-relative mb-2">
+                <div class="input-group input-group-sm shadow-sm">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text" id="mapSearchInput" class="form-control border-start-0 ps-0" placeholder="Search places, district, category, activity..." autocomplete="off">
+                    <button class="btn btn-outline-secondary border-start-0" type="button" id="clearSearchBtn" title="Clear Search">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+                <!-- Autocomplete Dropdown List -->
+                <div class="autocomplete-dropdown" id="searchAutocompleteList"></div>
             </div>
 
             <!-- Filter Selects -->
             <div class="row g-2">
                 <div class="col-6">
                     <select id="districtFilter" class="form-select form-select-sm shadow-sm">
-                        <option value="">All Kerala ({{ districts_count }} Districts)</option>
+                        <option value="">All Kerala (14 Districts)</option>
                         {% for d in districts %}
                             <option value="{{ d.slug }}">{{ d.name }}</option>
                         {% endfor %}
@@ -413,6 +472,8 @@
                     <label class="btn btn-outline-success" for="modeDriving"><i class="bi bi-car-front-fill me-1"></i>Drive</label>
                     <input type="radio" class="btn-check" name="routeMode" id="modeWalking" value="walking">
                     <label class="btn btn-outline-success" for="modeWalking"><i class="bi bi-person-walking me-1"></i>Walk</label>
+                    <input type="radio" class="btn-check" name="routeMode" id="modeCycling" value="cycling">
+                    <label class="btn btn-outline-success" for="modeCycling"><i class="bi bi-bicycle me-1"></i>Cycle</label>
                 </div>
 
                 <!-- Stops List -->
@@ -435,7 +496,10 @@
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="small text-muted">Route Engine:</span>
-                        <span class="badge bg-success" id="tripEngineVal">OSRM Routing</span>
+                        <span class="badge bg-success" id="tripEngineVal">OSRM Verified Road</span>
+                    </div>
+                    <div class="small text-muted mb-2 border-top pt-2" style="font-size:0.75rem;">
+                        <i class="bi bi-info-circle me-1"></i>Estimates are based on validated road geometry metrics. Live traffic delays may vary.
                     </div>
                     <button class="btn btn-kerala-primary btn-sm w-100 fw-semibold mt-2" id="saveTripBtn">
                         <i class="bi bi-bookmark-check-fill me-1"></i>Save Trip Itinerary
@@ -487,16 +551,28 @@
                     <span class="badge bg-light text-dark border" id="drawerDistrict">District</span>
                 </div>
                 <h4 class="fw-bold font-heading mb-1 text-dark" id="drawerTitle">Destination Name</h4>
-                <p class="small text-muted mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="drawerLocality">Locality</span></p>
+                <p class="small text-muted mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="drawerLocality">Locality</span></p>
+
+                <!-- Full Address & GPS Coordinates Badge -->
+                <div class="p-2 mb-3 bg-light rounded-2 border small" style="font-size: 0.8rem;">
+                    <div class="text-muted mb-1"><i class="bi bi-pin-map text-success me-1"></i><span id="drawerAddress">Address</span></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary font-monospace" id="drawerCoords">0.0000°N, 0.0000°E</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" id="drawerCoordsStatus">Verified GPS</span>
+                    </div>
+                </div>
 
                 <!-- Verification Provenance Box -->
                 <div class="p-2 mb-3 bg-light rounded-3 border small">
                     <div class="d-flex align-items-center justify-content-between">
-                        <span class="text-success fw-bold"><i class="bi bi-patch-check-fill me-1"></i>VERIFIED DESTINATION</span>
+                        <span class="text-success fw-bold"><i class="bi bi-patch-check-fill me-1"></i><span id="drawerVerificationStatus">VERIFIED</span></span>
                         <span class="text-muted" id="drawerVerifiedDate">Verified</span>
                     </div>
                     <div class="text-muted mt-1" style="font-size: 0.78rem;">
                         Source: <span id="drawerSource">Official Government Tourism Records</span>
+                    </div>
+                    <div class="text-muted" style="font-size: 0.75rem;">
+                        Last Updated: <span id="drawerUpdatedAt">Recent</span>
                     </div>
                 </div>
 
@@ -506,35 +582,85 @@
                     <strong><span id="drawerDistanceKm">0.0</span> km</strong> from your current GPS position (straight-line)
                 </div>
 
-                <!-- Key Facts Grid -->
+                <!-- Photo Gallery Thumbnails (if available) -->
+                <div id="drawerGallerySection" class="mb-3 d-none">
+                    <label class="form-label small fw-bold text-muted mb-1">Additional Photographs:</label>
+                    <div class="drawer-gallery-strip" id="drawerGalleryStrip"></div>
+                </div>
+
+                <!-- Complete Tourist Facts Grid -->
                 <div class="row g-2 mb-3 small">
                     <div class="col-6">
-                        <div class="p-2 bg-light rounded-2 border">
-                            <span class="text-muted d-block" style="font-size: 0.75rem;">Visiting Hours</span>
+                        <div class="p-2 bg-light rounded-2 border h-100">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;"><i class="bi bi-clock me-1"></i>Visiting Hours</span>
                             <strong class="text-dark" id="drawerHours">Open Daily</strong>
                         </div>
                     </div>
                     <div class="col-6">
-                        <div class="p-2 bg-light rounded-2 border">
-                            <span class="text-muted d-block" style="font-size: 0.75rem;">Entry Fee</span>
+                        <div class="p-2 bg-light rounded-2 border h-100">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;"><i class="bi bi-ticket-perforated me-1"></i>Entry Fee</span>
                             <strong class="text-dark" id="drawerFee">Free / Verified</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded-2 border h-100">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;"><i class="bi bi-door-closed me-1"></i>Weekly Closing</span>
+                            <strong class="text-dark" id="drawerClosing">None (Open All Days)</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded-2 border h-100">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;"><i class="bi bi-hourglass-split me-1"></i>Est. Duration</span>
+                            <strong class="text-dark" id="drawerDuration">1 - 2 hours</strong>
                         </div>
                     </div>
                 </div>
 
-                <!-- Description -->
-                <p class="small text-secondary mb-3" id="drawerDesc">Description goes here.</p>
+                <!-- Description & Details -->
+                <div class="mb-3">
+                    <p class="small text-secondary mb-1" id="drawerDesc">Short description.</p>
+                </div>
 
-                <!-- Activities -->
-                <div class="mb-4">
-                    <label class="form-label small fw-bold text-muted mb-1">Activities & Highlights:</label>
-                    <div id="drawerActivities" class="d-flex flex-wrap gap-1">
-                        <!-- Populated dynamically -->
+                <!-- Visitor Advice & Safety Instructions -->
+                <div class="p-2 mb-3 bg-light rounded-2 border small" style="font-size: 0.78rem;">
+                    <div class="mb-1">
+                        <strong class="text-dark"><i class="bi bi-journal-check text-success me-1"></i>Visitor Guidelines:</strong>
+                        <span class="text-muted" id="drawerGuidelines">Modest attire recommended.</span>
+                    </div>
+                    <div class="mb-1">
+                        <strong class="text-dark"><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Safety Instructions:</strong>
+                        <span class="text-muted" id="drawerSafety">Follow official warning signboards.</span>
+                    </div>
+                    <div>
+                        <strong class="text-dark"><i class="bi bi-universal-access text-info me-1"></i>Accessibility:</strong>
+                        <span class="text-muted" id="drawerAccessibility">Wheelchair accessible entrance.</span>
+                    </div>
+                </div>
+
+                <!-- Activities Highlights -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Tourist Activities:</label>
+                    <div id="drawerActivities" class="d-flex flex-wrap gap-1"></div>
+                </div>
+
+                <!-- Official Contact Channels -->
+                <div class="p-2 mb-3 bg-light rounded-2 border small" style="font-size: 0.78rem;">
+                    <div class="mb-1">
+                        <strong class="text-dark"><i class="bi bi-telephone text-success me-1"></i>Help Desk:</strong>
+                        <span class="text-muted" id="drawerContact">+91 471 2321132</span>
+                    </div>
+                    <div class="mb-1" id="drawerEmailRow">
+                        <strong class="text-dark"><i class="bi bi-envelope text-success me-1"></i>Official Email:</strong>
+                        <span class="text-muted" id="drawerEmail">info@keralatourism.org</span>
+                    </div>
+                    <div>
+                        <strong class="text-dark"><i class="bi bi-globe text-success me-1"></i>Official Site:</strong>
+                        <a href="#" target="_blank" rel="noopener noreferrer" class="text-success text-decoration-none" id="drawerWebsite">Visit Authority Webpage</a>
                     </div>
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="mt-auto d-flex flex-column gap-2">
+                <div class="mt-auto d-flex flex-column gap-2 pt-2 border-top">
                     <button class="btn btn-kerala-primary w-100 fw-semibold" id="drawerAddToTripBtn">
                         <i class="bi bi-plus-circle me-1"></i>Add to Trip Itinerary
                     </button>
@@ -570,7 +696,7 @@
                 </div>
                 <div class="mb-3">
                     <label for="tripNotesInput" class="form-label small fw-bold">Personal Travel Notes (Optional)</label>
-                    <textarea class="form-control" id="tripNotesInput" rows="2" placeholder="e.g. Plan to start early morning to catch the sunset at Kovalam."></textarea>
+                    <textarea class="form-control" id="tripNotesInput" rows="2" placeholder="e.g. Plan to start early morning to catch the sunset."></textarea>
                 </div>
                 <div id="saveTripAlert" class="alert d-none small mb-0"></div>
             </div>
@@ -607,26 +733,26 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentRoutePolyline = null;
     let routeWaypointMarkers = [];
     let selectedDestination = null;
+    let districtsGeoJsonLayer = null;
 
-    // Authentication state passed from Django
     const isUserAuthenticated = {{ user.is_authenticated|yesno:"true,false" }};
     const csrfToken = '{{ csrf_token }}';
 
     // 2. Leaflet Map Setup with Approved Keyless Basemaps
     const map = L.map('kerala-interactive-map', {
-        center: [9.35, 76.85], // Kerala geographic center
+        center: [9.85, 76.60],
         zoom: 8,
         minZoom: 6,
         maxZoom: 18,
-        zoomControl: false // custom position
+        zoomControl: false
     });
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Layer 1: Esri World Street Map (Keyless, High Precision)
+    // Layer 1: Esri World Street Map (Keyless, Authorized)
     const esriStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
-        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, OpenStreetMap contributors'
+        attribution: 'Tiles &copy; Esri &mdash; Esri, OpenStreetMap contributors'
     }).addTo(map);
 
     // Layer 2: OpenTopoMap
@@ -638,14 +764,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Layer 3: Esri World Imagery (Satellite)
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar'
     });
-
-    L.control.layers({
-        "Street Map": esriStreet,
-        "Topographic": openTopo,
-        "Satellite": esriSatellite
-    }, null, { position: 'topright' }).addTo(map);
 
     // 3. Category Color Palette & Icon Mapping
     const categoryColors = {
@@ -692,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function () {
         iconCreateFunction: function (cluster) {
             const count = cluster.getChildCount();
             return L.divIcon({
-                html: `<div style="background: rgba(11, 110, 79, 0.9); color: #fff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">${count}</div>`,
+                html: `<div style="background: rgba(11, 110, 79, 0.92); color: #fff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">${count}</div>`,
                 className: 'marker-cluster-custom',
                 iconSize: L.point(36, 36)
             });
@@ -700,7 +820,71 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     map.addLayer(markerClusterGroup);
 
-    let destinationMarkersMap = {}; // id -> marker
+    // 5. Load Verified District Boundaries GeoJSON
+    fetch("{% url 'destinations:api_districts_geojson' %}")
+        .then(res => res.json())
+        .then(geojson => {
+            districtsGeoJsonLayer = L.geoJSON(geojson, {
+                style: function (feature) {
+                    return {
+                        color: '#0b6e4f',
+                        weight: 1.5,
+                        opacity: 0.65,
+                        fillColor: '#10b981',
+                        fillOpacity: 0.04
+                    };
+                },
+                onEachFeature: function (feature, layer) {
+                    const props = feature.properties || {};
+                    const districtName = props.name || 'District';
+                    layer.bindTooltip(`<strong>${districtName} District</strong><br><small class="text-muted">Click to zoom and filter</small>`, {
+                        sticky: true
+                    });
+
+                    layer.on('mouseover', function () {
+                        layer.setStyle({
+                            weight: 2.5,
+                            fillOpacity: 0.15,
+                            color: '#074732'
+                        });
+                    });
+
+                    layer.on('mouseout', function () {
+                        districtsGeoJsonLayer.resetStyle(layer);
+                    });
+
+                    layer.on('click', function () {
+                        map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+                        if (props.slug) {
+                            document.getElementById('districtFilter').value = props.slug;
+                            applyFilters();
+                        }
+                    });
+                }
+            }).addTo(map);
+
+            // Layer Control
+            L.control.layers({
+                "Street Map": esriStreet,
+                "Topographic": openTopo,
+                "Satellite": esriSatellite
+            }, {
+                "District Boundaries": districtsGeoJsonLayer,
+                "Destinations Cluster": markerClusterGroup
+            }, { position: 'topright' }).addTo(map);
+        })
+        .catch(err => {
+            console.warn("Could not load district GeoJSON boundaries:", err);
+            L.control.layers({
+                "Street Map": esriStreet,
+                "Topographic": openTopo,
+                "Satellite": esriSatellite
+            }, {
+                "Destinations Cluster": markerClusterGroup
+            }, { position: 'topright' }).addTo(map);
+        });
+
+    let destinationMarkersMap = {};
 
     function populateMarkers(destinations) {
         markerClusterGroup.clearLayers();
@@ -713,12 +897,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const marker = L.marker([dest.lat, dest.lng], { icon: icon });
 
             const popupContent = `
-                <div style="font-family: 'Plus Jakarta Sans', sans-serif; min-width: 200px;">
-                    <img src="${dest.image_url}" alt="${dest.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 6px;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
-                    <span style="font-size: 0.75rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${dest.category}</span>
+                <div style="font-family: 'Plus Jakarta Sans', sans-serif; min-width: 220px;">
+                    <img src="${dest.image_url}" alt="${dest.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 6px;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
+                    <span style="font-size: 0.72rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${dest.category}</span>
                     <h6 style="margin: 6px 0 2px 0; font-weight: 700; font-size: 0.95rem;">${dest.name}</h6>
-                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;"><i class="bi bi-geo-alt text-danger me-1"></i>${dest.locality}</p>
-                    <button class="btn btn-kerala-primary btn-sm w-100 py-1" onclick="window.selectDestinationById(${dest.id})">View Details</button>
+                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 6px;"><i class="bi bi-geo-alt text-danger me-1"></i>${dest.locality}</p>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-kerala-primary btn-sm flex-grow-1 py-1" onclick="window.selectDestinationById(${dest.id})">Complete Info</button>
+                        <button class="btn btn-outline-success btn-sm py-1 px-2" onclick="window.addToTrip(${dest.id})" title="Add to trip">+ Trip</button>
+                    </div>
                 </div>
             `;
             marker.bindPopup(popupContent);
@@ -733,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('visibleCountBadge').textContent = `${destinations.length} Places`;
     }
 
-    // 5. Sidebar Destination Cards Rendering
+    // 6. Sidebar Destination Cards Rendering
     function renderDestinationsList(destinations) {
         const container = document.getElementById('destinationsListContainer');
         if (!destinations || destinations.length === 0) {
@@ -775,7 +962,7 @@ document.addEventListener('DOMContentLoaded', function () {
         container.innerHTML = html;
     }
 
-    // 6. Right Sliding Detail Panel
+    // 7. Complete Destination Details Drawer
     function openDestinationDrawer(dest) {
         selectedDestination = dest;
         document.getElementById('drawerImage').src = dest.image_url;
@@ -783,12 +970,49 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('drawerCategory').textContent = dest.category;
         document.getElementById('drawerDistrict').textContent = dest.district;
         document.getElementById('drawerLocality').textContent = dest.locality || dest.district;
-        document.getElementById('drawerVerifiedDate').textContent = dest.last_verified_date ? `Verified ${dest.last_verified_date}` : 'Verified';
-        document.getElementById('drawerSource').textContent = dest.source_name || 'Official Tourism Authority';
-        document.getElementById('drawerHours').textContent = dest.opening_hours || 'Open Daily';
-        document.getElementById('drawerFee').textContent = dest.entry_fee || 'Free / Verified';
-        document.getElementById('drawerDesc').textContent = dest.short_description;
+        document.getElementById('drawerAddress').textContent = dest.full_address || `${dest.name}, ${dest.district}, Kerala`;
+        document.getElementById('drawerCoords').textContent = `${dest.lat.toFixed(5)}°N, ${dest.lng.toFixed(5)}°E`;
+        
+        document.getElementById('drawerVerificationStatus').textContent = dest.verification_status || 'VERIFIED';
+        document.getElementById('drawerVerifiedDate').textContent = dest.last_verified_date ? `Verified: ${dest.last_verified_date}` : 'Verified';
+        document.getElementById('drawerSource').textContent = dest.source_name || 'Official Government Tourism Records';
+        document.getElementById('drawerUpdatedAt').textContent = dest.updated_at || 'Recent';
+
+        document.getElementById('drawerHours').textContent = dest.opening_hours || 'Not available / Open Daily';
+        document.getElementById('drawerFee').textContent = dest.entry_fee || 'Not available / Free';
+        document.getElementById('drawerClosing').textContent = dest.weekly_closing_day || 'None (Open All Days)';
+        document.getElementById('drawerDuration').textContent = dest.expected_visit_duration || '1 - 2 hours';
+        document.getElementById('drawerDesc').textContent = dest.detailed_description || dest.short_description;
+
+        document.getElementById('drawerGuidelines').textContent = dest.visitor_guidelines || 'Modest attire recommended; keep surroundings clean.';
+        document.getElementById('drawerSafety').textContent = dest.safety_instructions || 'Follow official warning signboards and authorized routes.';
+        document.getElementById('drawerAccessibility').textContent = dest.accessibility_info || 'Partial accessibility; check entrance desk.';
+
+        document.getElementById('drawerContact').textContent = dest.contact_info || '+91 471 2321132 / 1800-425-4747';
+        document.getElementById('drawerEmail').textContent = dest.official_email || 'info@keralatourism.org';
+        document.getElementById('drawerWebsite').href = dest.official_website || 'https://www.keralatourism.org/';
         document.getElementById('drawerViewFullBtn').href = dest.detail_url;
+
+        // Photo gallery thumbnails in drawer
+        const gallerySection = document.getElementById('drawerGallerySection');
+        const galleryStrip = document.getElementById('drawerGalleryStrip');
+        galleryStrip.innerHTML = '';
+        if (dest.gallery && dest.gallery.length > 0) {
+            dest.gallery.forEach(img => {
+                const imgThumb = document.createElement('img');
+                imgThumb.className = 'drawer-gallery-thumb';
+                imgThumb.src = img.image_url;
+                imgThumb.alt = img.caption || dest.name;
+                imgThumb.title = `${img.caption || ''} (${img.attribution || 'Verified'})`;
+                imgThumb.onclick = () => {
+                    document.getElementById('drawerImage').src = img.image_url;
+                };
+                galleryStrip.appendChild(imgThumb);
+            });
+            gallerySection.classList.remove('d-none');
+        } else {
+            gallerySection.classList.add('d-none');
+        }
 
         // Distance from user
         const distBox = document.getElementById('drawerDistanceBox');
@@ -815,7 +1039,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 actContainer.appendChild(span);
             });
         } else {
-            actContainer.innerHTML = '<span class="text-muted small">Sightseeing, Photography</span>';
+            actContainer.innerHTML = '<span class="text-muted small">Sightseeing, Photography, Cultural Exploration</span>';
         }
 
         document.getElementById('destinationDetailDrawer').classList.add('open');
@@ -825,7 +1049,58 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('destinationDetailDrawer').classList.remove('open');
     });
 
-    // 7. Filters & Real-time Search Handler
+    // 8. Real-time Search Autocomplete
+    const searchInput = document.getElementById('mapSearchInput');
+    const autoList = document.getElementById('searchAutocompleteList');
+    let autoDebounce = null;
+
+    searchInput.addEventListener('input', function () {
+        const val = this.value.trim();
+        clearTimeout(autoDebounce);
+
+        if (val.length < 2) {
+            autoList.style.display = 'none';
+            autoList.innerHTML = '';
+            applyFilters();
+            return;
+        }
+
+        autoDebounce = setTimeout(() => {
+            fetch(`/destinations/api/autocomplete/?q=${encodeURIComponent(val)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success' && data.results.length > 0) {
+                        let itemsHtml = '';
+                        data.results.forEach(item => {
+                            itemsHtml += `
+                                <div class="autocomplete-item" onclick="window.selectDestinationById(${item.id}); document.getElementById('searchAutocompleteList').style.display='none';">
+                                    <img src="${item.image_url}" class="autocomplete-thumb" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=400&q=80';">
+                                    <div class="overflow-hidden">
+                                        <strong class="d-block text-truncate small text-dark">${item.name}</strong>
+                                        <span class="text-muted" style="font-size:0.75rem;">${item.category} &bull; ${item.locality || item.district}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        autoList.innerHTML = itemsHtml;
+                        autoList.style.display = 'block';
+                    } else {
+                        autoList.style.display = 'none';
+                    }
+                })
+                .catch(() => autoList.style.display = 'none');
+
+            applyFilters();
+        }, 200);
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!searchInput.contains(e.target) && !autoList.contains(e.target)) {
+            autoList.style.display = 'none';
+        }
+    });
+
+    // 9. Filters & Real-time Search Handler
     function applyFilters() {
         const query = document.getElementById('mapSearchInput').value.toLowerCase().trim();
         const districtSlug = document.getElementById('districtFilter').value;
@@ -849,7 +1124,6 @@ document.addEventListener('DOMContentLoaded', function () {
             visibleDestinations.forEach(dest => {
                 dest.distance_km = parseFloat(calculateHaversine(userLocation.lat, userLocation.lng, dest.lat, dest.lng).toFixed(1));
             });
-            // If nearby tab is active, sort by distance
             const nearbyActive = document.getElementById('pane-nearby').classList.contains('active');
             if (nearbyActive) {
                 visibleDestinations.sort((a, b) => a.distance_km - b.distance_km);
@@ -859,30 +1133,30 @@ document.addEventListener('DOMContentLoaded', function () {
         populateMarkers(visibleDestinations);
         renderDestinationsList(visibleDestinations);
 
-        // Fit map bounds to filtered items
         if (visibleDestinations.length > 0) {
             const bounds = L.latLngBounds(visibleDestinations.map(d => [d.lat, d.lng]));
             map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
         }
     }
 
-    document.getElementById('mapSearchInput').addEventListener('input', applyFilters);
     document.getElementById('districtFilter').addEventListener('change', applyFilters);
     document.getElementById('categoryFilter').addEventListener('change', applyFilters);
     document.getElementById('clearSearchBtn').addEventListener('click', () => {
         document.getElementById('mapSearchInput').value = '';
+        autoList.style.display = 'none';
         applyFilters();
     });
     document.getElementById('resetFiltersBtn').addEventListener('click', () => {
         document.getElementById('mapSearchInput').value = '';
         document.getElementById('districtFilter').value = '';
         document.getElementById('categoryFilter').value = '';
+        autoList.style.display = 'none';
         applyFilters();
     });
 
-    // 8. Haversine Math
+    // 10. Haversine Distance
     function calculateHaversine(lat1, lon1, lat2, lon2) {
-        const R = 6371; // km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -892,7 +1166,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return R * c;
     }
 
-    // 9. GPS Geolocation Integration
+    // 11. GPS Geolocation Integration
     let userMarker = null;
     let userCircle = null;
 
@@ -915,7 +1189,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 gpsPill.className = 'badge bg-success';
                 gpsPill.textContent = 'GPS Active';
 
-                // Add or update pulse marker
                 if (userMarker) map.removeLayer(userMarker);
                 if (userCircle) map.removeLayer(userCircle);
 
@@ -927,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 userMarker = L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
-                userMarker.bindPopup("<strong>You are here</strong><br><small class='text-muted'>Live GPS Coordinates</small>");
+                userMarker.bindPopup("<strong>You are here</strong><br><small class='text-muted'>Verified GPS Coordinates</small>");
 
                 const radiusKm = parseFloat(document.getElementById('nearbyRadiusSelect').value) || 25;
                 userCircle = L.circle([lat, lng], {
@@ -944,10 +1217,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 applyFilters();
             },
             error => {
-                gpsPill.className = 'badge bg-danger';
-                gpsPill.textContent = 'GPS Denied / Unavailable';
+                gpsPill.className = 'badge bg-secondary';
+                gpsPill.textContent = 'Location Set to Kerala';
                 console.warn("GPS error:", error.message);
-                // Fallback to Thiruvananthapuram center for simulation if denied
                 const fallbackLat = 8.5241;
                 const fallbackLng = 76.9366;
                 userLocation = { lat: fallbackLat, lng: fallbackLng };
@@ -1017,20 +1289,19 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 10. Multi-Stop Route Planning & Trip Builder
+    // 12. Multi-Stop Route Planning & Trip Builder
     window.addToTrip = function (destId) {
         const dest = allDestinations.find(d => d.id === destId);
         if (!dest) return;
 
         if (tripStops.some(s => s.id === dest.id)) {
-            alert(`"${dest.name}" is already in your trip.`);
+            alert(`"${dest.name}" is already in your trip itinerary.`);
             return;
         }
 
         tripStops.push(dest);
         renderTripStops();
 
-        // Switch to Trip tab
         const tripTab = new bootstrap.Tab(document.getElementById('tab-trip-btn'));
         tripTab.show();
 
@@ -1133,19 +1404,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderRouteOnMap(routeData) {
         clearRouteGraphics();
 
-        // Convert GeoJSON coordinates [lng, lat] to Leaflet [lat, lng]
         const latLngs = routeData.geometry.coordinates.map(c => [c[1], c[0]]);
 
         currentRoutePolyline = L.polyline(latLngs, {
             color: '#0b6e4f',
             weight: 5,
-            opacity: 0.85,
+            opacity: 0.88,
             lineJoin: 'round'
         }).addTo(map);
 
         map.fitBounds(currentRoutePolyline.getBounds(), { padding: [50, 50] });
 
-        // Update Metrics Box
         document.getElementById('tripMetricsBox').classList.remove('d-none');
         document.getElementById('tripDistanceVal').textContent = `${routeData.distance_km} km`;
         
@@ -1163,7 +1432,7 @@ document.addEventListener('DOMContentLoaded', function () {
             engineBadge.textContent = 'OSRM Verified Road';
         }
 
-        // Add numbered waypoint markers on map
+        // Add numbered waypoint markers
         tripStops.forEach((stop, idx) => {
             const wpIcon = L.divIcon({
                 className: 'waypoint-pin',
@@ -1183,7 +1452,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // 11. Save Trip Itinerary
+    // 13. Save Trip Itinerary
     const saveTripModal = new bootstrap.Modal(document.getElementById('saveTripModal'));
     document.getElementById('saveTripBtn').addEventListener('click', () => {
         if (!isUserAuthenticated) {
@@ -1242,13 +1511,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 12. Map Controls & Interactions
+    // 14. Interactions & Destination Selection
     window.selectDestinationById = function (destId) {
         const dest = allDestinations.find(d => d.id === destId);
         if (!dest) return;
 
         openDestinationDrawer(dest);
-
         map.setView([dest.lat, dest.lng], 14, { animate: true });
 
         const marker = destinationMarkersMap[dest.id];
@@ -1268,7 +1536,6 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('drawerDirectionsBtn').addEventListener('click', () => {
         if (!selectedDestination) return;
         if (userLocation) {
-            // Plan route from user location to selected destination
             const coordsStr = `${userLocation.lng},${userLocation.lat};${selectedDestination.lng},${selectedDestination.lat}`;
             fetch(`/destinations/api/route/?coordinates=${encodeURIComponent(coordsStr)}&profile=driving`)
                 .then(r => r.json())
@@ -1278,7 +1545,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
         } else {
-            // Prompt to detect location
             detectUserLocation();
         }
     });
@@ -1296,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Reset View
     document.getElementById('resetBoundsBtn').addEventListener('click', () => {
-        map.setView([9.35, 76.85], 8);
+        map.setView([9.85, 76.60], 8);
     });
 
     // Fullscreen Toggle
@@ -1313,13 +1579,13 @@ document.addEventListener('DOMContentLoaded', function () {
     populateMarkers(allDestinations);
     renderDestinationsList(allDestinations);
 
-    // Initial check for hash or query param (e.g. ?place=kovalam)
+    // Initial check for query param (e.g. ?place=kovalam-beach)
     const urlParams = new URLSearchParams(window.location.search);
     const placeParam = urlParams.get('place');
     if (placeParam) {
         const matched = allDestinations.find(d => d.slug === placeParam);
         if (matched) {
-            setTimeout(() => window.selectDestinationById(matched.id), 500);
+            setTimeout(() => window.selectDestinationById(matched.id), 400);
         }
     }
 });

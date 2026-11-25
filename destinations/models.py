@@ -84,6 +84,15 @@ class Destination(VerifiableDataModel):
     best_time_to_visit = models.CharField(max_length=100, blank=True, default="October to March")
     contact_info = models.CharField(max_length=200, blank=True, verbose_name="Official Contact / Help Desk")
     official_website = models.URLField(max_length=500, blank=True, verbose_name="Official Webpage")
+    official_email = models.EmailField(blank=True, verbose_name="Official Contact Email")
+    
+    # Detailed Visitor Information
+    weekly_closing_day = models.CharField(max_length=100, blank=True, verbose_name="Weekly Closing Day(s)", help_text="e.g. Closed on Mondays or Open all 7 days")
+    expected_visit_duration = models.CharField(max_length=100, blank=True, verbose_name="Expected Visit Duration", help_text="e.g. 1-2 hours, Half day, Full day")
+    visitor_guidelines = models.TextField(blank=True, verbose_name="Visitor Guidelines", help_text="Dress code, cultural decorum, photography permissions")
+    safety_instructions = models.TextField(blank=True, verbose_name="Safety & Caution Instructions", help_text="Tide warnings, steep terrain, slippery trails, monsoon guidelines")
+    accessibility_info = models.CharField(max_length=255, blank=True, verbose_name="Accessibility Information", help_text="Wheelchair access, ramps, elevator status")
+    
     is_featured = models.BooleanField(default=False, verbose_name="Featured Destination")
 
     class Meta:
@@ -120,6 +129,51 @@ class Destination(VerifiableDataModel):
         if not self.available_activities:
             return []
         return [act.strip() for act in self.available_activities.split(',') if act.strip()]
+
+    @property
+    def average_rating(self):
+        avg = self.reviews.filter(is_approved=True).aggregate(models.Avg('rating'))['rating__avg']
+        return round(avg, 1) if avg else None
+
+    @property
+    def approved_reviews_count(self):
+        return self.reviews.filter(is_approved=True).count()
+
+
+class DestinationReview(models.Model):
+    """
+    Tourist ratings and verified reviews for a Kerala destination.
+    """
+    destination = models.ForeignKey(
+        Destination,
+        on_delete=models.CASCADE,
+        related_name='reviews',
+        verbose_name="Destination"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='destination_reviews',
+        verbose_name="Tourist"
+    )
+    rating = models.PositiveSmallIntegerField(
+        choices=[(1, '1 Star'), (2, '2 Stars'), (3, '3 Stars'), (4, '4 Stars'), (5, '5 Stars')],
+        default=5,
+        verbose_name="Rating (1-5)"
+    )
+    title = models.CharField(max_length=150, blank=True, verbose_name="Review Title")
+    comment = models.TextField(verbose_name="Review Feedback")
+    visit_date = models.DateField(blank=True, null=True, verbose_name="Date of Visit")
+    is_approved = models.BooleanField(default=True, verbose_name="Approved for Display")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Destination Review & Rating"
+        verbose_name_plural = "Destination Reviews & Ratings"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.destination.name} ({self.rating}★)"
 
 
 class DestinationImage(models.Model):

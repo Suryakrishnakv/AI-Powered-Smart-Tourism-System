@@ -319,4 +319,83 @@ class KeralaInteractiveMapTests(TestCase):
         self.assertEqual(list_data['trips'][0]['title'], 'Southern Kerala Explorer')
         self.assertEqual(list_data['trips'][0]['stops_count'], 2)
 
+    def test_06_api_districts_geojson_returns_14_official_boundaries(self):
+        """Verify the district GeoJSON API returns all 14 official district boundaries of Kerala."""
+        url = reverse('destinations:api_districts_geojson')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'application/json')
+        data = res.json()
+        self.assertEqual(data['type'], 'FeatureCollection')
+        self.assertEqual(len(data['features']), 14)
+
+        district_names = [f['properties']['name'] for f in data['features']]
+        self.assertIn('Thiruvananthapuram', district_names)
+        self.assertIn('Kollam', district_names)
+        self.assertIn('Wayanad', district_names)
+        self.assertIn('Ernakulam', district_names)
+        self.assertIn('Kasaragod', district_names)
+
+    def test_07_api_autocomplete_suggestions(self):
+        """Verify real-time autocomplete matches destinations across name and activities."""
+        url = reverse('destinations:api_autocomplete')
+
+        # Short query (< 2 chars) must return empty results
+        res_short = self.client.get(url, {'q': 'k'})
+        self.assertEqual(res_short.status_code, 200)
+        self.assertEqual(len(res_short.json()['results']), 0)
+
+        # Matched query
+        res = self.client.get(url, {'q': 'Kovalam'})
+        self.assertEqual(res.status_code, 200)
+        results = res.json()['results']
+        self.assertGreaterEqual(len(results), 1)
+        names = [r['name'] for r in results]
+        self.assertIn('Kovalam Beach', names)
+        self.assertIn('lat', results[0])
+        self.assertIn('lng', results[0])
+
+    def test_08_api_add_review_lifecycle(self):
+        """Verify review submission lifecycle: unauthenticated rejection and tourist review creation."""
+        url = reverse('destinations:api_add_review')
+        dest = Destination.objects.first()
+
+        # Anonymous rejection
+        res_anon = self.client.post(
+            url,
+            data={'destination_id': dest.id, 'rating': 5, 'comment': 'Breathtaking scenery!'},
+            content_type='application/json'
+        )
+        self.assertEqual(res_anon.status_code, 401)
+
+        # Authenticated tourist submission
+        self.client.force_login(self.user)
+        res_auth = self.client.post(
+            url,
+            data={
+                'destination_id': dest.id,
+                'rating': 5,
+                'title': 'Must visit in Kerala',
+                'comment': 'Stunning sunrise views, clean pathways, and very polite local guides.'
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(res_auth.status_code, 200)
+        data = res_auth.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['average_rating'], 5.0)
+        self.assertEqual(data['reviews_count'], 1)
+
+    def test_09_destination_detail_page_has_complete_information_and_reviews(self):
+        """Verify destination detail page displays complete visitor advice, safety rules, and reviews."""
+        dest = Destination.objects.get(slug='kovalam-beach')
+        url = dest.get_absolute_url()
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Visitor Guidelines & Tourist Advice")
+        self.assertContains(res, "Tourist Reviews & Ratings")
+        self.assertContains(res, "Official Data Verification Record")
+        self.assertContains(res, "Nearby Verified Attractions")
+
+
 

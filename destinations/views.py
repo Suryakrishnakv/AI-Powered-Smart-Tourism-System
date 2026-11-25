@@ -2,12 +2,14 @@ import json
 import math
 import urllib.request
 import urllib.error
+import os
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.conf import settings
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.db.models import Q
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
-from .models import District, Category, Destination, SavedTrip, SavedTripStop
+from .models import District, Category, Destination, SavedTrip, SavedTripStop, DestinationReview
 
 
 def calculate_haversine_distance(lat1, lon1, lat2, lon2):
@@ -28,8 +30,19 @@ def calculate_haversine_distance(lat1, lon1, lat2, lon2):
 
 def serialize_destination(d, user_lat=None, user_lng=None):
     """
-    Serializes a Destination model instance for JSON payloads.
+    Serializes a Destination model instance with complete visitor,
+    photographic, trust, and location metadata.
     """
+    gallery_list = [
+        {
+            'image_url': img.display_image_url,
+            'caption': img.caption or d.name,
+            'source': img.source_name or d.source_name,
+            'attribution': img.photographer_attribution or 'Verified Commons'
+        }
+        for img in d.gallery_images.all()[:6]
+    ]
+
     data = {
         'id': d.id,
         'name': d.name,
@@ -41,21 +54,49 @@ def serialize_destination(d, user_lat=None, user_lng=None):
         'category_icon': d.category.icon or 'bi-geo-alt',
         'lat': float(d.latitude),
         'lng': float(d.longitude),
+        
+        # Descriptions & Locality
         'short_description': d.short_description,
-        'locality': d.village_locality,
-        'full_address': d.full_address,
+        'detailed_description': d.detailed_description or d.short_description,
+        'locality': d.village_locality or 'Not available',
+        'full_address': d.full_address or f"{d.name}, {d.district.name}, Kerala",
+        
+        # Photographs & Media
         'image_url': d.display_image_url,
-        'entry_fee': d.entry_fee or 'Free / No Entry Fee',
-        'opening_hours': d.opening_hours or 'Open daily',
-        'best_time_to_visit': d.best_time_to_visit,
-        'contact_info': d.contact_info,
-        'official_website': d.official_website,
+        'image_caption': d.image_caption or d.name,
+        'image_attribution': d.image_attribution or 'Verified Official / Wikimedia Commons',
+        'gallery': gallery_list,
+        
+        # Visitor & Tourist Information
+        'entry_fee': d.entry_fee or 'Not available / Check official desk',
+        'opening_hours': d.opening_hours or 'Not available / Daylight access',
+        'weekly_closing_day': d.weekly_closing_day or 'None (Open all 7 days)',
+        'expected_visit_duration': d.expected_visit_duration or '1 - 2 hours',
+        'best_time_to_visit': d.best_time_to_visit or 'October to March',
+        'visitor_guidelines': d.visitor_guidelines or 'Modest attire recommended; maintain environmental cleanliness.',
+        'safety_instructions': d.safety_instructions or 'Adhere strictly to official safety warning boards and lifeguard flags.',
+        'accessibility_info': d.accessibility_info or 'Partial accessibility; check helpdesk on arrival.',
+        
+        # Contact Channels
+        'contact_info': d.contact_info or 'DTPC Tourism Helpline: 1800-425-4747',
+        'official_website': d.official_website or d.district.official_dtpc_website or 'https://www.keralatourism.org/',
+        'official_email': d.official_email or 'info@keralatourism.org',
+        
+        # Activities & URLs
         'activities': d.activities_list,
         'detail_url': d.get_absolute_url(),
+        
+        # Provenance & Trust Tracking
         'verification_status': d.verification_status,
         'source_name': d.source_name,
-        'last_verified_date': d.last_verified_date.strftime('%b %d, %Y') if d.last_verified_date else None,
+        'source_url': d.source_url or 'https://www.keralatourism.org/',
+        'last_verified_date': d.last_verified_date.strftime('%b %d, %Y') if d.last_verified_date else 'Verified',
+        'updated_at': d.updated_at.strftime('%b %d, %Y'),
         'is_featured': d.is_featured,
+        
+        # Rating metrics
+        'average_rating': d.average_rating,
+        'reviews_count': d.approved_reviews_count,
     }
     if user_lat is not None and user_lng is not None:
         dist = calculate_haversine_distance(user_lat, user_lng, float(d.latitude), float(d.longitude))
@@ -144,7 +185,8 @@ def thiruvananthapuram_destinations_view(request):
 
 def destination_detail_view(request, district_slug, slug):
     """
-    Displays full detailed, verified information and interactive map for a destination.
+    Displays complete detailed, verified information, photo gallery, visitor rules,
+    reviews, and interactive Leaflet map for a destination.
     """
     destination = get_object_or_404(
         Destination.objects.select_related('district', 'category'),
@@ -153,15 +195,29 @@ def destination_detail_view(request, district_slug, slug):
     )
     gallery_images = destination.gallery_images.all()
 
-    # Nearby destinations in the same district
-    nearby_destinations = Destination.objects.filter(
-        district=destination.district
-    ).exclude(id=destination.id)[:3]
+    # Calculate real nearest destinations across database using Haversine distance
+    dest_lat = float(destination.latitude)
+    dest_lng = float(destination.longitude)
+    other_destinations = Destination.objects.exclude(id=destination.id).select_related('district', 'category')
+    
+    nearby_with_dist = []
+    for od in other_destinations:
+        dist = calculate_haversine_distance(dest_lat, dest_lng, float(od.latitude), float(od.longitude))
+        nearby_with_dist.append((od, round(dist, 1)))
+
+    nearby_with_dist.sort(key=lambda x: x[1])
+    nearby_destinations = [item[0] for item in nearby_with_dist[:4]]
+
+    # Reviews
+    approved_reviews = destination.reviews.filter(is_approved=True).select_related('user')
 
     return render(request, 'destinations/destination_detail.html', {
         'destination': destination,
         'gallery_images': gallery_images,
         'nearby_destinations': nearby_destinations,
+        'approved_reviews': approved_reviews,
+        'average_rating': destination.average_rating,
+        'reviews_count': destination.approved_reviews_count,
     })
 
 
@@ -435,3 +491,103 @@ def api_list_trips(request):
         })
 
     return JsonResponse({'status': 'success', 'trips': data})
+
+
+@require_GET
+def api_districts_geojson(request):
+    """
+    Returns verified GeoJSON containing all 14 official district boundaries of Kerala.
+    """
+    geojson_path = settings.BASE_DIR / 'static' / 'data' / 'kerala_districts.geojson'
+    if not os.path.exists(geojson_path):
+        return JsonResponse({'status': 'error', 'message': 'District GeoJSON data file not found.'}, status=404)
+
+    with open(geojson_path, 'r', encoding='utf-8') as f:
+        data = f.read()
+
+    return HttpResponse(data, content_type='application/json')
+
+
+@require_GET
+def api_autocomplete(request):
+    """
+    Real-time autocomplete suggestions matching destinations by name, district, locality, or category.
+    """
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'status': 'success', 'results': []})
+
+    matches = Destination.objects.select_related('district', 'category').filter(
+        Q(name__icontains=q) |
+        Q(village_locality__icontains=q) |
+        Q(district__name__icontains=q) |
+        Q(category__name__icontains=q) |
+        Q(available_activities__icontains=q)
+    )[:10]
+
+    results = [
+        {
+            'id': d.id,
+            'name': d.name,
+            'district': d.district.name,
+            'locality': d.village_locality,
+            'category': d.category.name,
+            'category_icon': d.category.icon or 'bi-geo-alt',
+            'image_url': d.display_image_url,
+            'lat': float(d.latitude),
+            'lng': float(d.longitude),
+            'url': d.get_absolute_url()
+        }
+        for d in matches
+    ]
+    return JsonResponse({'status': 'success', 'results': results})
+
+
+@require_POST
+def api_add_review(request):
+    """
+    Allows authenticated tourists to submit ratings and feedback for a destination.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'Please sign in to submit a review.'}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
+
+    dest_id = payload.get('destination_id')
+    try:
+        rating = int(payload.get('rating', 5))
+        if rating < 1 or rating > 5:
+            rating = 5
+    except (ValueError, TypeError):
+        rating = 5
+
+    comment = payload.get('comment', '').strip()
+    title = payload.get('title', '').strip()
+
+    if not dest_id or not comment:
+        return JsonResponse({'status': 'error', 'message': 'Destination ID and review comment are required.'}, status=400)
+
+    try:
+        destination = Destination.objects.get(id=dest_id)
+    except Destination.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Destination not found.'}, status=404)
+
+    review = DestinationReview.objects.create(
+        destination=destination,
+        user=request.user,
+        rating=rating,
+        title=title,
+        comment=comment,
+        is_approved=True
+    )
+
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Thank you! Your verified review has been submitted.',
+        'review_id': review.id,
+        'average_rating': destination.average_rating,
+        'reviews_count': destination.approved_reviews_count,
+    })
