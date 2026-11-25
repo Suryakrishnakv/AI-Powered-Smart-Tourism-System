@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Explore Thiruvananthapuram | 50 Verified Tourist Destinations{% endblock %}
+{% block title %}Explore {{ district.name }} | {{ district_total }} Verified Tourist Destinations{% endblock %}
 
 {% block extra_css %}
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
-    .tvm-hero {
+    .district-hero {
         background: linear-gradient(135deg, rgba(7, 71, 50, 0.92) 0%, rgba(11, 110, 79, 0.88) 100%),
-                    url('https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Sree_Padmanabhaswamy_Temple_East_Fort.jpg/1280px-Sree_Padmanabhaswamy_Temple_East_Fort.jpg') center/cover no-repeat;
+                    url('{{ district.cover_image_url|default:"https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=1920&q=80" }}') center/cover no-repeat;
         color: #ffffff;
         padding: 60px 0 50px 0;
     }
@@ -68,7 +68,7 @@
         border-radius: 6px;
     }
     .dest-map-container {
-        height: 420px;
+        height: 440px;
         width: 100%;
         border-radius: 16px;
         border: 2px solid #e2e8f0;
@@ -99,26 +99,28 @@
 
 {% block content %}
 <!-- District Header Banner -->
-<section class="tvm-hero">
+<section class="district-hero">
     <div class="container">
         <div class="row align-items-center g-4">
             <div class="col-lg-8">
-                <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                     <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold">
-                        <i class="bi bi-geo-alt-fill me-1"></i>District 01 of 14
+                        <i class="bi bi-geo-alt-fill me-1"></i>District {{ district_number }} of 14
                     </span>
                     <span class="badge bg-success border border-success-subtle">
                         <i class="bi bi-patch-check-fill me-1"></i>Real & Verified Data Only
                     </span>
                 </div>
-                <h1 class="font-heading display-5 fw-bold mb-2">Thiruvananthapuram</h1>
+                <h1 class="font-heading display-5 fw-bold mb-2">{{ district.name }}</h1>
                 <p class="lead mb-3 text-white-50">
-                    The Capital of God's Own Country. Explore 50 verified destinations ranging from crescent beaches and sacred temples to misty Western Ghats peaks and colonial palaces.
+                    {{ district.description }}
                 </p>
                 <div class="d-flex flex-wrap gap-3 text-white small">
-                    <span><i class="bi bi-building me-1 text-warning"></i>HQ: Thiruvananthapuram</span>
-                    <span><i class="bi bi-signpost-2 me-1 text-warning"></i>50 Official Destinations</span>
-                    <span><i class="bi bi-telephone me-1 text-warning"></i>DTPC: +91 471 2321132</span>
+                    <span><i class="bi bi-building me-1 text-warning"></i>HQ: {{ district.headquarters }}</span>
+                    <span><i class="bi bi-signpost-2 me-1 text-warning"></i>{{ district_total }} Official Destinations</span>
+                    {% if district.dtpc_contact %}
+                        <span><i class="bi bi-telephone me-1 text-warning"></i>DTPC: {{ district.dtpc_contact }}</span>
+                    {% endif %}
                 </div>
             </div>
             <div class="col-lg-4 text-lg-end">
@@ -133,37 +135,36 @@
 <!-- Filter & Search Controls -->
 <section class="py-4 bg-white border-bottom shadow-sm">
     <div class="container">
-        <!-- Search and Counts Row -->
-        <form method="get" action="{% url 'destinations:thiruvananthapuram_list' %}" class="row g-3 align-items-center mb-3">
+        <form method="get" action="{% url 'destinations:district_list' district.slug %}" class="row g-3 align-items-center mb-3">
             <div class="col-md-7 col-lg-8">
                 <div class="input-group">
                     <span class="input-group-text bg-light border-end-0">
                         <i class="bi bi-search text-success"></i>
                     </span>
-                    <input type="text" name="q" value="{{ query }}" class="form-control border-start-0 ps-0" placeholder="Search Thiruvananthapuram destinations by name, locality, or activities (e.g. Varkala, Kovalam, Boating)...">
+                    <input type="text" name="q" value="{{ query }}" class="form-control border-start-0 ps-0" placeholder="Search {{ district.name }} destinations by name, locality, or activities...">
                     {% if selected_category %}
                         <input type="hidden" name="category" value="{{ selected_category }}">
                     {% endif %}
                     <button type="submit" class="btn btn-kerala-primary px-4 fw-semibold">Search</button>
                     {% if query or selected_category %}
-                        <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-outline-secondary" title="Clear Filters">
+                        <a href="{% url 'destinations:district_list' district.slug %}" class="btn btn-outline-secondary" title="Clear Filters">
                             <i class="bi bi-x-circle"></i>
                         </a>
                     {% endif %}
                 </div>
             </div>
             <div class="col-md-5 col-lg-4 text-md-end text-muted small">
-                Showing <strong>{{ total_count }}</strong> of 50 verified destinations
+                Showing <strong>{{ total_count }}</strong> of {{ district_total }} verified destinations
             </div>
         </form>
 
         <!-- Category Pills -->
         <div class="d-flex flex-wrap gap-2 pt-1">
-            <a href="{% url 'destinations:thiruvananthapuram_list' %}{% if query %}?q={{ query }}{% endif %}" class="cat-filter-pill {% if not selected_category %}active{% endif %}">
+            <a href="{% url 'destinations:district_list' district.slug %}{% if query %}?q={{ query }}{% endif %}" class="cat-filter-pill {% if not selected_category %}active{% endif %}">
                 <i class="bi bi-grid-fill"></i>All Categories
             </a>
             {% for cat in categories %}
-            <a href="{% url 'destinations:thiruvananthapuram_list' %}?category={{ cat.slug }}{% if query %}&q={{ query }}{% endif %}" class="cat-filter-pill {% if selected_category == cat.slug %}active{% endif %}">
+            <a href="{% url 'destinations:district_list' district.slug %}?category={{ cat.slug }}{% if query %}&q={{ query }}{% endif %}" class="cat-filter-pill {% if selected_category == cat.slug %}active{% endif %}">
                 <i class="bi {{ cat.icon }}"></i>{{ cat.name }}
             </a>
             {% endfor %}
@@ -177,12 +178,12 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-3">
             <div>
                 <span class="text-success fw-bold text-uppercase small">Geographic Visualization</span>
-                <h3 class="font-heading fw-bold mb-0">Thiruvananthapuram Interactive Destination Map</h3>
+                <h3 class="font-heading fw-bold mb-0">{{ district.name }} Interactive Destination Map</h3>
             </div>
             <span class="text-muted small">Click any marker to view photos and details</span>
         </div>
 
-        <div id="tvmDistrictMap" class="dest-map-container shadow-sm"></div>
+        <div id="districtInteractiveMap" class="dest-map-container shadow-sm"></div>
     </div>
 </section>
 
@@ -194,7 +195,7 @@
             <div class="col-xl-4 col-md-6">
                 <div class="dest-card">
                     <div class="dest-img-wrapper">
-                        <img src="{{ dest.display_image_url }}" alt="{{ dest.name }}" class="dest-img" loading="lazy">
+                        <img src="{{ dest.display_image_url }}" alt="{{ dest.name }}" class="dest-img" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
                         <span class="category-badge">
                             <i class="bi {{ dest.category.icon }} me-1"></i>{{ dest.category.name }}
                         </span>
@@ -213,7 +214,7 @@
                         </div>
 
                         <div class="text-muted small mb-3">
-                            <i class="bi bi-geo-alt text-danger me-1"></i>{{ dest.village_locality|default:"Thiruvananthapuram" }}
+                            <i class="bi bi-geo-alt text-danger me-1"></i>{{ dest.village_locality|default:district.name }}
                         </div>
 
                         <p class="text-secondary small mb-4 flex-grow-1" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
@@ -223,7 +224,7 @@
                         <div class="pt-3 border-top d-flex justify-content-between align-items-center">
                             <div class="small">
                                 <span class="text-muted d-block" style="font-size: 0.75rem;">TIMINGS / ENTRY</span>
-                                <strong class="text-dark">{{ dest.opening_hours|default:"Open Daytime"|truncatechars:18 }}</strong>
+                                <strong class="text-dark">{{ dest.opening_hours|default:"Open Daytime"|truncatechars:22 }}</strong>
                             </div>
                             <a href="{{ dest.get_absolute_url }}" class="btn btn-kerala-primary btn-sm px-3 fw-semibold">
                                 View Details <i class="bi bi-arrow-right ms-1"></i>
@@ -238,7 +239,7 @@
                     <i class="bi bi-search text-muted fs-1 mb-3"></i>
                     <h4>No destinations found matching your criteria</h4>
                     <p class="text-muted">Try clearing your search term or selecting "All Categories".</p>
-                    <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-kerala-primary">
+                    <a href="{% url 'destinations:district_list' district.slug %}" class="btn btn-kerala-primary">
                         Reset All Filters
                     </a>
                 </div>
@@ -255,17 +256,15 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Thiruvananthapuram Center Coordinates
-    const TVM_CENTER_LAT = 8.524139;
-    const TVM_CENTER_LNG = 76.936638;
+    const CENTER_LAT = {{ district.latitude }};
+    const CENTER_LNG = {{ district.longitude }};
 
-    const map = L.map('tvmDistrictMap', {
-        center: [TVM_CENTER_LAT, TVM_CENTER_LNG],
+    const map = L.map('districtInteractiveMap', {
+        center: [CENTER_LAT, CENTER_LNG],
         zoom: 10,
         scrollWheelZoom: false
     });
 
-    // Tile Layers: CARTO Voyager (primary) and ESRI World Street Map (alternative)
     const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
         subdomains: 'abcd',
@@ -274,16 +273,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const esriStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+        attribution: 'Tiles &copy; Esri'
     });
 
-    const baseMaps = {
+    L.control.layers({
         "Voyager (Clean)": cartoVoyager,
-        "Satellite/Street (Esri)": esriStreet
-    };
-    L.control.layers(baseMaps).addTo(map);
+        "Street Map (Esri)": esriStreet
+    }).addTo(map);
 
-    // Marker Data safely parsed via json_script
     const dataElement = document.getElementById('map-markers-data');
     const markersData = dataElement ? JSON.parse(dataElement.textContent) : [];
     const bounds = L.latLngBounds();
@@ -295,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const popupContent = `
                 <div style="max-width: 220px; font-family: 'Plus Jakarta Sans', sans-serif;">
-                    <img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.src='/static/images/hero-bg.jpg';">
+                    <img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80';">
                     <span style="font-size: 0.75rem; background: #0b6e4f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${item.category}</span>
                     <h6 style="margin: 6px 0 2px 0; font-weight: 700;">${item.name}</h6>
                     <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;"><i class="bi bi-geo-alt text-danger me-1"></i>${item.locality}</p>
@@ -310,7 +307,6 @@ document.addEventListener('DOMContentLoaded', function () {
         map.fitBounds(bounds, { padding: [30, 30] });
     }
 
-    // Force map to compute exact container dimensions
     setTimeout(function () {
         map.invalidateSize();
     }, 250);

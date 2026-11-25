@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{{ destination.name }} | Thiruvananthapuram Tourism{% endblock %}
+{% block title %}{{ destination.name }} | {{ destination.district.name }} Tourism{% endblock %}
 
 {% block extra_css %}
 <!-- Leaflet CSS -->
@@ -64,7 +64,7 @@
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a href="{% url 'core:home' %}" class="text-success text-decoration-none">Home</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'destinations:thiruvananthapuram_list' %}" class="text-success text-decoration-none">Thiruvananthapuram</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'destinations:district_list' destination.district.slug %}" class="text-success text-decoration-none">{{ destination.district.name }}</a></li>
                 <li class="breadcrumb-item active" aria-current="page">{{ destination.name }}</li>
             </ol>
         </nav>
@@ -73,7 +73,7 @@
 
 <!-- Hero Photo Header -->
 <div class="dest-detail-hero">
-    <img src="{{ destination.display_image_url }}" alt="{{ destination.name }}" class="dest-detail-hero-img">
+    <img src="{{ destination.display_image_url }}" alt="{{ destination.name }}" class="dest-detail-hero-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=1200&q=80';">
     <div class="dest-detail-overlay">
         <div class="container">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -84,7 +84,7 @@
                     <i class="bi bi-shield-check me-1"></i>Status: {{ destination.verification_status }}
                 </span>
                 <span class="badge bg-dark border border-secondary text-white-50">
-                    <i class="bi bi-geo-alt text-danger me-1"></i>{{ destination.village_locality|default:"Thiruvananthapuram" }}
+                    <i class="bi bi-geo-alt text-danger me-1"></i>{{ destination.village_locality|default:destination.district.name }}
                 </span>
             </div>
             <h1 class="display-4 font-heading fw-bold text-white mb-2">{{ destination.name }}</h1>
@@ -245,8 +245,8 @@
                     {% endif %}
 
                     <div class="d-grid mt-3">
-                        <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="btn btn-kerala-primary btn-sm">
-                            <i class="bi bi-arrow-left me-1"></i>Back to Thiruvananthapuram
+                        <a href="{% url 'destinations:district_list' destination.district.slug %}" class="btn btn-kerala-primary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i>Back to {{ destination.district.name }}
                         </a>
                     </div>
                 </div>

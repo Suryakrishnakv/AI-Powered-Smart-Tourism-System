@@ -200,20 +200,20 @@
         <div class="row g-3">
             {% for dist in districts %}
             <div class="col-xl-3 col-lg-4 col-md-6">
-                {% if dist == 'Thiruvananthapuram' %}
-                <a href="{% url 'destinations:thiruvananthapuram_list' %}" class="district-pill border-success shadow-sm" style="background: #f0fdf4;">
+                {% if dist.slug %}
+                <a href="{% url 'destinations:district_list' dist.slug %}" class="district-pill border-success shadow-sm" style="background: #f0fdf4;">
                     <span class="badge bg-success text-white rounded-circle p-2">
                         <i class="bi bi-pin-map-fill"></i>
                     </span>
-                    <span class="fw-bold text-success">{{ dist }}</span>
-                    <span class="badge bg-success-subtle text-success ms-auto small">50 Places</span>
+                    <span class="fw-bold text-success">{{ dist.name }}</span>
+                    <span class="badge bg-success-subtle text-success ms-auto small">{{ dist.count }} Places</span>
                 </a>
                 {% else %}
                 <div class="district-pill opacity-75">
                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-circle p-2">
                         <i class="bi bi-pin-map-fill"></i>
                     </span>
-                    <span>{{ dist }}</span>
+                    <span>{{ dist.name }}</span>
                 </div>
                 {% endif %}
             </div>

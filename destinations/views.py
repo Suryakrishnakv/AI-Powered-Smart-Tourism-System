@@ -2,14 +2,35 @@ from django.shortcuts import render, get_object_or_404
 from django.db.models import Q
 from .models import District, Category, Destination
 
+DISTRICT_ORDER = {
+    'thiruvananthapuram': '01',
+    'kollam': '02',
+    'pathanamthitta': '03',
+    'alappuzha': '04',
+    'kottayam': '05',
+    'idukki': '06',
+    'ernakulam': '07',
+    'thrissur': '08',
+    'palakkad': '09',
+    'malappuram': '10',
+    'kozhikode': '11',
+    'wayanad': '12',
+    'kannur': '13',
+    'kasaragod': '14',
+}
 
-def thiruvananthapuram_destinations_view(request):
+
+def district_destinations_view(request, district_slug='thiruvananthapuram'):
     """
-    Explore Thiruvananthapuram page displaying real, verified destinations
-    strictly belonging to Thiruvananthapuram district with interactive Leaflet map.
+    Unified District Explore page displaying verified destinations strictly
+    belonging to the requested Kerala district alongside an interactive Leaflet map.
     """
-    district = get_object_or_404(District, slug='thiruvananthapuram')
-    destinations = Destination.objects.filter(district=district).select_related('category', 'district')
+    district = get_object_or_404(District, slug=district_slug)
+    all_district_destinations = Destination.objects.filter(
+        district=district
+    ).select_related('category', 'district')
+    district_total = all_district_destinations.count()
+    destinations = all_district_destinations
 
     # Category filter
     selected_category_slug = request.GET.get('category', '').strip()
@@ -29,9 +50,8 @@ def thiruvananthapuram_destinations_view(request):
     categories = Category.objects.all()
 
     # Prepare lightweight destination markers for Leaflet map
-    map_markers = []
-    for d in destinations:
-        map_markers.append({
+    map_markers = [
+        {
             'name': d.name,
             'lat': float(d.latitude),
             'lng': float(d.longitude),
@@ -39,17 +59,26 @@ def thiruvananthapuram_destinations_view(request):
             'locality': d.village_locality,
             'image_url': d.display_image_url,
             'url': d.get_absolute_url(),
-        })
+        }
+        for d in destinations
+    ]
 
-    return render(request, 'destinations/thiruvananthapuram_list.html', {
+    return render(request, 'destinations/district_list.html', {
         'district': district,
+        'district_number': DISTRICT_ORDER.get(district.slug, '--'),
         'destinations': destinations,
         'categories': categories,
         'selected_category': selected_category_slug,
         'query': query,
         'map_markers': map_markers,
         'total_count': destinations.count(),
+        'district_total': district_total,
     })
+
+
+def thiruvananthapuram_destinations_view(request):
+    """Backwards-compatible alias for Thiruvananthapuram explore view."""
+    return district_destinations_view(request, district_slug='thiruvananthapuram')
 
 
 def destination_detail_view(request, district_slug, slug):
