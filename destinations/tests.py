@@ -398,4 +398,98 @@ class KeralaInteractiveMapTests(TestCase):
         self.assertContains(res, "Nearby Verified Attractions")
 
 
+class PathanamthittaDestinationsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+
+    def setUp(self):
+        self.client = Client()
+        self.tvm_district = District.objects.get(slug='thiruvananthapuram')
+        self.kollam_district = District.objects.get(slug='kollam')
+        self.pta_district = District.objects.get(slug='pathanamthitta')
+
+    def test_01_pathanamthitta_has_50_destinations_and_others_preserved(self):
+        """1. Verify Pathanamthitta has exactly 50 destinations, TVM has 50, Kollam has 50 (Total: 150)."""
+        pta_count = Destination.objects.filter(district=self.pta_district).count()
+        tvm_count = Destination.objects.filter(district=self.tvm_district).count()
+        kollam_count = Destination.objects.filter(district=self.kollam_district).count()
+        total_count = Destination.objects.count()
+
+        self.assertEqual(pta_count, 50)
+        self.assertEqual(tvm_count, 50)
+        self.assertEqual(kollam_count, 50)
+        self.assertEqual(total_count, 150)
+
+    def test_02_pathanamthitta_coordinates_within_district_bounds(self):
+        """2. Verify all Pathanamthitta destinations have valid coordinates strictly within district boundaries."""
+        for dest in Destination.objects.filter(district=self.pta_district):
+            lat = float(dest.latitude)
+            lng = float(dest.longitude)
+            # Pathanamthitta spans ~9.05 to 9.55 N, 76.45 to 77.30 E
+            self.assertGreaterEqual(lat, 9.00, f"Latitude too low for {dest.name}: {lat}")
+            self.assertLessEqual(lat, 9.60, f"Latitude too high for {dest.name}: {lat}")
+            self.assertGreaterEqual(lng, 76.45, f"Longitude too low for {dest.name}: {lng}")
+            self.assertLessEqual(lng, 77.35, f"Longitude too high for {dest.name}: {lng}")
+            self.assertTrue(bool(dest.source_name), f"Missing source for {dest.name}")
+            self.assertEqual(dest.verification_status, VerificationStatus.VERIFIED)
+            self.assertTrue(bool(dest.main_image_url), f"Missing image URL for {dest.name}")
+
+    def test_03_duplicate_prevention_and_slug_uniqueness(self):
+        """3. Verify zero duplicate slugs exist within Pathanamthitta and across the whole database."""
+        pta_slugs = Destination.objects.filter(district=self.pta_district).values_list('slug', flat=True)
+        self.assertEqual(len(pta_slugs), len(set(pta_slugs)))
+        self.assertEqual(len(pta_slugs), 50)
+
+        all_slugs = Destination.objects.values_list('slug', flat=True)
+        self.assertEqual(len(all_slugs), len(set(all_slugs)))
+        self.assertEqual(len(all_slugs), 150)
+
+    def test_04_pathanamthitta_list_view_loads_with_50_destinations(self):
+        """4. Verify Pathanamthitta district list page loads with HTTP 200 and lists key destinations."""
+        url = reverse('destinations:pathanamthitta_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sabarimala Sree Dharma Sastha Temple")
+        self.assertContains(response, "Gavi Eco-Tourism")
+        self.assertContains(response, "Aranmula Sree Parthasarathy Temple")
+        self.assertContains(response, "Konni Elephant Training Centre")
+        self.assertContains(response, "50 Verified Tourist Destinations")
+
+    def test_05_pathanamthitta_detail_view_complete_information(self):
+        """5. Verify Pathanamthitta destination detail view renders complete visitor and trust metadata."""
+        dest = Destination.objects.get(slug='gavi-eco-tourism-and-wildlife-reserve')
+        url = dest.get_absolute_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Gavi Eco-Tourism and Wildlife Reserve")
+        self.assertContains(response, "Visitor Guidelines & Tourist Advice")
+        self.assertContains(response, "Safety Instructions")
+        self.assertContains(response, "Official Data Verification Record")
+        self.assertContains(response, "Kerala Forest Development Corporation (KFDC)")
+
+    def test_06_idempotency_of_pathanamthitta_import_command(self):
+        """6. Verify calling import_pathanamthitta_destinations multiple times preserves exactly 50 destinations."""
+        call_command('import_pathanamthitta_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.pta_district).count(), 50)
+        self.assertEqual(Destination.objects.count(), 150)
+
+    def test_07_kerala_map_api_filters_pathanamthitta_destinations(self):
+        """7. Verify Kerala interactive map API endpoint filters Pathanamthitta destinations properly."""
+        url = reverse('destinations:api_destinations_list')
+        response = self.client.get(url, {'district': 'pathanamthitta'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['count'], 50)
+        self.assertEqual(len(data['destinations']), 50)
+        names = [d['name'] for d in data['destinations']]
+        self.assertIn("Sabarimala Sree Dharma Sastha Temple", names)
+        self.assertIn("Perunthenaruvi Waterfalls and Eco-Tourism", names)
+        self.assertIn("Adavi Eco-Tourism and Coracle Rafting Centre", names)
+
+
+
 

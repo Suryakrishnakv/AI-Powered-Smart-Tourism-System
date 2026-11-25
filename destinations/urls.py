@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/trip/list/', views.api_list_trips, name='api_list_trips'),
     path('thiruvananthapuram/', views.district_destinations_view, {'district_slug': 'thiruvananthapuram'}, name='thiruvananthapuram_list'),
     path('kollam/', views.district_destinations_view, {'district_slug': 'kollam'}, name='kollam_list'),
+    path('pathanamthitta/', views.district_destinations_view, {'district_slug': 'pathanamthitta'}, name='pathanamthitta_list'),
     path('<slug:district_slug>/', views.district_destinations_view, name='district_list'),
     path('<slug:district_slug>/<slug:slug>/', views.destination_detail_view, name='destination_detail'),
 ]
