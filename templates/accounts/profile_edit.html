@@ -270,11 +270,10 @@ document.addEventListener('DOMContentLoaded', function () {
         scrollWheelZoom: true
     });
 
-    // CartoDB Voyager Tile Layer (OpenStreetMap-based, high performance, no 403 blocks)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 20,
-        subdomains: 'abcd',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>'
+    // Esri World Street Map Tile Layer (keyless, fast, no localhost blocking)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors'
     }).addTo(map);
 
     // Draggable Location Marker
