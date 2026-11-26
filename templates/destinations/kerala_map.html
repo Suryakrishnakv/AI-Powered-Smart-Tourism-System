@@ -621,6 +621,12 @@
                     <p class="small text-secondary mb-1" id="drawerDesc">Short description.</p>
                 </div>
 
+                <!-- Permit & Booking Restrictions Box (Protected / Restricted Areas) -->
+                <div id="drawerPermitBox" class="p-2 mb-3 bg-warning bg-opacity-10 rounded-2 border border-warning border-opacity-50 small d-none" style="font-size: 0.78rem;">
+                    <strong class="text-dark d-block mb-1"><i class="bi bi-file-earmark-lock2-fill text-warning me-1"></i>Permits & Access Restrictions:</strong>
+                    <span class="text-dark" id="drawerPermitText">Permit rules apply.</span>
+                </div>
+
                 <!-- Visitor Advice & Safety Instructions -->
                 <div class="p-2 mb-3 bg-light rounded-2 border small" style="font-size: 0.78rem;">
                     <div class="mb-1">
@@ -1003,6 +1009,14 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('drawerGuidelines').textContent = dest.visitor_guidelines || 'Modest attire recommended; keep surroundings clean.';
         document.getElementById('drawerSafety').textContent = dest.safety_instructions || 'Follow official warning signboards and authorized routes.';
         document.getElementById('drawerAccessibility').textContent = dest.accessibility_info || 'Partial accessibility; check entrance desk.';
+
+        const permitBox = document.getElementById('drawerPermitBox');
+        if (dest.permit_requirements) {
+            document.getElementById('drawerPermitText').textContent = dest.permit_requirements;
+            permitBox.classList.remove('d-none');
+        } else {
+            permitBox.classList.add('d-none');
+        }
 
         document.getElementById('drawerContact').textContent = dest.contact_info || '+91 471 2321132 / 1800-425-4747';
         document.getElementById('drawerEmail').textContent = dest.official_email || 'info@keralatourism.org';

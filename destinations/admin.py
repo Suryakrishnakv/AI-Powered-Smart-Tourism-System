@@ -89,7 +89,7 @@ class DestinationAdmin(admin.ModelAdmin):
         'name', 'district', 'category', 'village_locality',
         'latitude', 'longitude', 'verification_status', 'last_verified_date', 'is_featured'
     )
-    search_fields = ('name', 'village_locality', 'full_address', 'source_name')
+    search_fields = ('name', 'village_locality', 'full_address', 'source_name', 'permit_requirements')
     list_filter = ('district', 'category', 'verification_status', MissingCoordinatesFilter, DuplicateRecordsFilter, 'is_featured')
     prepopulated_fields = {'slug': ('name',)}
     inlines = [DestinationImageInline, DestinationReviewInline]
@@ -106,11 +106,11 @@ class DestinationAdmin(admin.ModelAdmin):
         ("Photography & Media", {
             'fields': ('main_image', 'main_image_url', 'image_caption', 'image_attribution')
         }),
-        ("Visitor Information & Timings", {
+        ("Visitor Information, Permits & Timings", {
             'fields': (
                 'available_activities', 'entry_fee', 'opening_hours',
                 'weekly_closing_day', 'expected_visit_duration', 'best_time_to_visit',
-                'visitor_guidelines', 'safety_instructions', 'accessibility_info'
+                'permit_requirements', 'visitor_guidelines', 'safety_instructions', 'accessibility_info'
             )
         }),
         ("Official Contact Channels", {

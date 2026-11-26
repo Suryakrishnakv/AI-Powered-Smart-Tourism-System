@@ -91,6 +91,7 @@ class Destination(VerifiableDataModel):
     expected_visit_duration = models.CharField(max_length=100, blank=True, verbose_name="Expected Visit Duration", help_text="e.g. 1-2 hours, Half day, Full day")
     visitor_guidelines = models.TextField(blank=True, verbose_name="Visitor Guidelines", help_text="Dress code, cultural decorum, photography permissions")
     safety_instructions = models.TextField(blank=True, verbose_name="Safety & Caution Instructions", help_text="Tide warnings, steep terrain, slippery trails, monsoon guidelines")
+    permit_requirements = models.TextField(blank=True, verbose_name="Permit, Booking & Access Restrictions", help_text="Forest department permits, Hydel passes, advance online slots, seasonal closures")
     accessibility_info = models.CharField(max_length=255, blank=True, verbose_name="Accessibility Information", help_text="Wheelchair access, ramps, elevator status")
     
     is_featured = models.BooleanField(default=False, verbose_name="Featured Destination")

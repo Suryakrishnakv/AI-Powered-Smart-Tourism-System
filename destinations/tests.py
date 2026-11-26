@@ -905,6 +905,186 @@ class KottayamDestinationsTests(TestCase):
         self.assertIsNotNone(mozart.last_verified_date)
 
 
+class IdukkiDestinationsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+        call_command('import_alappuzha_destinations')
+        call_command('import_kottayam_destinations')
+        call_command('import_idukki_destinations')
+
+    def setUp(self):
+        self.client = Client()
+        self.tvm_district = District.objects.get(slug='thiruvananthapuram')
+        self.kollam_district = District.objects.get(slug='kollam')
+        self.pta_district = District.objects.get(slug='pathanamthitta')
+        self.alpy_district = District.objects.get(slug='alappuzha')
+        self.ktm_district = District.objects.get(slug='kottayam')
+        self.idk_district = District.objects.get(slug='idukki')
+
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='idk_admin', email='idk_admin@smarttourism.local', password='AdminPass123!'
+        )
+
+    def test_01_idukki_counts_and_earlier_districts_preserved(self):
+        """1. Verify Idukki has 43 records (42 VERIFIED, 1 PENDING) and all 243 prior records remain untouched."""
+        self.assertEqual(Destination.objects.filter(district=self.tvm_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.kollam_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.pta_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.alpy_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.ktm_district).count(), 43)
+
+        idk_qs = Destination.objects.filter(district=self.idk_district)
+        self.assertEqual(idk_qs.count(), 43)
+        self.assertEqual(idk_qs.filter(verification_status=VerificationStatus.VERIFIED).count(), 42)
+        self.assertEqual(idk_qs.filter(verification_status=VerificationStatus.PENDING).count(), 1)
+        self.assertEqual(idk_qs.filter(verification_status=VerificationStatus.EXPIRED).count(), 0)
+        self.assertEqual(Destination.objects.count(), 286)
+
+    def test_02_out_of_district_and_restricted_exclusions_verified(self):
+        """2. Verify Wayanad, Ernakulam, Pathanamthitta, TN border & closed Anamudi summit excluded from Idukki."""
+        idk_names = set(
+            Destination.objects.filter(district=self.idk_district).values_list('name', flat=True)
+        )
+        self.assertNotIn("Banasura Sagar Dam", idk_names)
+        self.assertNotIn("Thattekkad Bird Sanctuary", idk_names)
+        self.assertNotIn("Gavi", idk_names)
+        self.assertNotIn("Anamudi Peak", idk_names)
+        self.assertNotIn("Kolukkumalai", idk_names)
+        self.assertEqual(
+            Destination.objects.filter(district=self.idk_district, name__icontains='Chinnar').count(),
+            1
+        )
+        self.assertIn("Munnar Hill Station", idk_names)
+        self.assertIn("Eravikulam National Park (Rajamalai)", idk_names)
+        self.assertIn("Idukki Arch Dam, Cheruthoni Dam & Reservoir", idk_names)
+        self.assertIn("Mangala Devi Kannagi Temple", idk_names)
+
+    def test_03_idukki_coordinates_and_pending_guard(self):
+        """3. Verify Idukki GPS coordinates, image provenance, and PENDING Erattayar Dam status."""
+        for dest in Destination.objects.filter(district=self.idk_district):
+            lat = float(dest.latitude)
+            lng = float(dest.longitude)
+            # Idukki spans ~9.40..10.36 N, 76.62..77.41 E
+            self.assertGreaterEqual(lat, 9.40, f"Latitude too low for {dest.name}: {lat}")
+            self.assertLessEqual(lat, 10.36, f"Latitude too high for {dest.name}: {lat}")
+            self.assertGreaterEqual(lng, 76.62, f"Longitude too low for {dest.name}: {lng}")
+            self.assertLessEqual(lng, 77.41, f"Longitude too high for {dest.name}: {lng}")
+            self.assertTrue(bool(dest.source_name), f"Missing source for {dest.name}")
+            self.assertTrue(bool(dest.main_image_url), f"Missing image URL for {dest.name}")
+            self.assertTrue(bool(dest.image_attribution), f"Missing attribution for {dest.name}")
+
+        erattayar = Destination.objects.get(slug='erattayar-dam-idukki')
+        self.assertEqual(erattayar.verification_status, VerificationStatus.PENDING)
+        self.assertIsNone(erattayar.last_verified_date)
+
+        # Creating a new destination with valid GPS does NOT auto-verify it
+        cat = Category.objects.first()
+        default_status_dest = Destination.objects.create(
+            name="Unverified GPS Check Spot",
+            slug="unverified-gps-check-spot",
+            district=self.idk_district,
+            category=cat,
+            short_description="Check default status",
+            detailed_description="Check default status",
+            latitude=9.85,
+            longitude=76.97,
+            source_name="Test",
+        )
+        self.assertEqual(default_status_dest.verification_status, VerificationStatus.PENDING)
+
+    def test_04_protected_area_permits_and_detail_page_display(self):
+        """4. Verify protected areas & dams expose permit_requirements in API and Detail pages."""
+        eravikulam = Destination.objects.get(slug='eravikulam-national-park-munnar')
+        self.assertIn("Anamudi Peak", eravikulam.permit_requirements)
+        detail_res = self.client.get(eravikulam.get_absolute_url())
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertContains(detail_res, "Permit, Booking & Access Restrictions")
+        self.assertContains(detail_res, "eravikulamnationalpark.in")
+        self.assertContains(detail_res, "Best Season to Visit")
+        self.assertContains(detail_res, "Add to Trip")
+        self.assertContains(detail_res, "Official Data Verification Record")
+
+        # Mangala Devi single-day opening clearly documented
+        mangala = Destination.objects.get(slug='mangala-devi-kannagi-temple-idukki')
+        self.assertIn("Chitra Pournami", mangala.permit_requirements)
+        mangala_api = self.client.get(reverse('destinations:api_destinations_list'), {'q': 'Mangala Devi'})
+        self.assertEqual(mangala_api.status_code, 200)
+        self.assertIn("Chitra Pournami", mangala_api.json()['destinations'][0]['permit_requirements'])
+
+    def test_05_idukki_map_integration_filters_nearby_directions_and_mobile(self):
+        """5. Verify interactive Kerala map filters Idukki, search, nearby API, directions, and mobile responsiveness."""
+        list_res = self.client.get(reverse('destinations:idukki_list'))
+        self.assertEqual(list_res.status_code, 200)
+        self.assertContains(list_res, "Idukki Interactive Destination Map")
+        self.assertContains(list_res, "Munnar Hill Station")
+
+        # Category filter on Idukki list
+        cat_res = self.client.get(reverse('destinations:idukki_list'), {'category': 'wildlife-and-ecotourism'})
+        self.assertEqual(cat_res.status_code, 200)
+        self.assertContains(cat_res, "Periyar Tiger Reserve")
+
+        map_res = self.client.get(reverse('destinations:kerala_map'))
+        self.assertEqual(map_res.status_code, 200)
+        self.assertContains(map_res, "286 Places")
+        self.assertContains(map_res, "drawerPermitBox")
+        self.assertContains(map_res, "@media (max-width: 991px)")
+
+        # Map API & Autocomplete
+        self.assertEqual(
+            self.client.get(reverse('destinations:api_destinations_list'), {'district': 'idukki'}).json()['count'],
+            43
+        )
+        auto = self.client.get(reverse('destinations:api_autocomplete'), {'q': 'Mattupetty'})
+        self.assertIn("Mattupetty Dam & Reservoir", [r['name'] for r in auto.json()['results']])
+
+        # Nearby Munnar & Route Directions
+        nearby = self.client.get(reverse('destinations:api_nearby_destinations'), {
+            'lat': '10.0889', 'lng': '77.0595', 'radius': '15', 'district': 'idukki'
+        })
+        self.assertIn("Attukad Waterfalls", [d['name'] for d in nearby.json()['destinations']])
+
+        route = self.client.get(reverse('destinations:api_route_proxy'), {
+            'coordinates': '77.0595,10.0889;77.1239,10.1063', 'profile': 'driving'
+        })
+        self.assertEqual(route.status_code, 200)
+        self.assertEqual(route.json()['status'], 'success')
+        self.assertGreater(route.json()['distance_km'], 5.0)
+
+    def test_06_duplicate_prevention_idempotency_and_admin_permit_management(self):
+        """6. Verify duplicate prevention, command idempotency, and Admin permit/verification management."""
+        from django.db import IntegrityError, transaction
+        call_command('import_idukki_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.idk_district).count(), 43)
+
+        cat = Category.objects.first()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Destination.objects.create(
+                    name="Munnar Hill Station",
+                    slug="munnar-dup",
+                    district=self.idk_district,
+                    category=cat,
+                    short_description="Duplicate",
+                    detailed_description="Duplicate",
+                    latitude=10.0889,
+                    longitude=77.0595,
+                    source_name="Test",
+                )
+
+        self.client.force_login(self.admin_user)
+        eravikulam = Destination.objects.get(slug='eravikulam-national-park-munnar')
+        change_url = reverse('admin:destinations_destination_change', args=[eravikulam.id])
+        change_res = self.client.get(change_url)
+        self.assertEqual(change_res.status_code, 200)
+        self.assertContains(change_res, "permit_requirements")
+        self.assertContains(change_res, "map_picker.js")
+
+
+
 
 
 

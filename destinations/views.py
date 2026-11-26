@@ -75,6 +75,7 @@ def serialize_destination(d, user_lat=None, user_lng=None):
         'best_time_to_visit': d.best_time_to_visit or 'October to March',
         'visitor_guidelines': d.visitor_guidelines or 'Modest attire recommended; maintain environmental cleanliness.',
         'safety_instructions': d.safety_instructions or 'Adhere strictly to official safety warning boards and lifeguard flags.',
+        'permit_requirements': d.permit_requirements or '',
         'accessibility_info': d.accessibility_info or 'Partial accessibility; check helpdesk on arrival.',
         
         # Contact Channels

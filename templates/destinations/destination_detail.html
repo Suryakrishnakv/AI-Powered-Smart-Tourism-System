@@ -238,7 +238,7 @@
                         </div>
                     </div>
 
-                    <div class="p-3 bg-light rounded-3 border">
+                    <div class="p-3 bg-light rounded-3 border mb-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <span class="fw-bold small text-dark d-block">
@@ -251,6 +251,15 @@
                             <span class="badge {{ destination.status_badge_class }}">{{ destination.verification_status }}</span>
                         </div>
                     </div>
+
+                    {% if destination.permit_requirements %}
+                    <div class="p-3 bg-warning bg-opacity-10 rounded-3 border border-warning border-opacity-50">
+                        <span class="fw-bold small text-dark d-block mb-1">
+                            <i class="bi bi-file-earmark-lock2-fill text-warning me-1"></i>Permit, Booking & Access Restrictions
+                        </span>
+                        <p class="small text-dark mb-0">{{ destination.permit_requirements }}</p>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Photo Gallery Section -->
