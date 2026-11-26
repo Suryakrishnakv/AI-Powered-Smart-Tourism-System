@@ -1084,6 +1084,208 @@ class IdukkiDestinationsTests(TestCase):
         self.assertContains(change_res, "map_picker.js")
 
 
+class ErnakulamDestinationsTests(TestCase):
+    """Comprehensive verification for audited Ernakulam District destinations & existing districts."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+        call_command('import_alappuzha_destinations')
+        call_command('import_kottayam_destinations')
+        call_command('import_idukki_destinations')
+        call_command('import_ernakulam_destinations')
+        cls.ekm_district = District.objects.get(slug='ernakulam')
+        cls.admin_user = User.objects.create_superuser(
+            username='ekm_admin', email='ekmadmin@smarttourism.local', password='StrongPass!123'
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_01_prior_districts_preserved_and_ernakulam_counts_verified(self):
+        """1. Confirm all 286 previous district records stay untouched and Ernakulam loads 50 audited places."""
+        self.assertEqual(Destination.objects.filter(district__slug='thiruvananthapuram').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='kollam').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='pathanamthitta').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='alappuzha').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='kottayam').count(), 43)
+        self.assertEqual(Destination.objects.filter(district__slug='idukki').count(), 43)
+
+        ekm_qs = Destination.objects.filter(district=self.ekm_district)
+        self.assertEqual(ekm_qs.count(), 50)
+        self.assertEqual(ekm_qs.filter(verification_status=VerificationStatus.VERIFIED).count(), 48)
+        self.assertEqual(ekm_qs.filter(verification_status=VerificationStatus.PENDING).count(), 1)
+        self.assertEqual(ekm_qs.filter(verification_status=VerificationStatus.EXPIRED).count(), 1)
+        self.assertEqual(Destination.objects.count(), 336)
+
+    def test_02_exclusions_consolidations_and_geojson_land_bounds(self):
+        """2. Verify out-of-district exclusions, consolidations, GeoJSON containment, and PENDING default."""
+        import json
+        ekm_qs = Destination.objects.filter(district=self.ekm_district)
+        self.assertFalse(ekm_qs.filter(name__icontains='Athirappilly').exists())
+        self.assertFalse(ekm_qs.filter(name__icontains='Kumbhavurutty').exists())
+        self.assertFalse(ekm_qs.filter(name__icontains='Ilaveezhapoonchira').exists())
+        self.assertFalse(ekm_qs.filter(name__iexact='Vypin Island').exists())
+
+        # Consolidated & verified entries
+        self.assertTrue(ekm_qs.filter(slug='thattekad-bird-sanctuary').exists())
+        self.assertTrue(ekm_qs.filter(slug='bhoothathankettu-dam-forest').exists())
+        self.assertEqual(ekm_qs.filter(name__icontains='Malayattoor').count(), 1)
+        self.assertEqual(ekm_qs.filter(name__icontains='Mattancherry Palace').count(), 1)
+        self.assertEqual(ekm_qs.filter(name__icontains='Paradesi Synagogue').count(), 1)
+
+        gj = json.load(open('static/data/kerala_districts.geojson', 'r', encoding='utf-8'))
+        ekm_feat = [f for f in gj['features'] if f['properties'].get('slug') == 'ernakulam'][0]
+        geom = ekm_feat['geometry']
+        polys = [geom['coordinates']] if geom['type'] == 'Polygon' else geom['coordinates']
+
+        def point_in_ring(lon, lat, ring):
+            inside = False
+            j = len(ring) - 1
+            for i in range(len(ring)):
+                xi, yi = ring[i][0], ring[i][1]
+                xj, yj = ring[j][0], ring[j][1]
+                if ((yi > lat) != (yj > lat)) and (lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi):
+                    inside = not inside
+                j = i
+            return inside
+
+        for dest in ekm_qs:
+            lat, lon = float(dest.latitude), float(dest.longitude)
+            self.assertGreaterEqual(lat, 9.75)
+            self.assertLessEqual(lat, 10.35)
+            self.assertGreaterEqual(lon, 76.14)
+            self.assertLessEqual(lon, 76.85)
+            self.assertTrue(
+                any(point_in_ring(lon, lat, p[0]) for p in polys),
+                f"{dest.slug} ({lat}, {lon}) fell outside Ernakulam GeoJSON polygon",
+            )
+
+        # Default verification status remains PENDING even when GPS coordinates exist
+        cat = Category.objects.first()
+        draft = Destination.objects.create(
+            name="Test Ernakulam Unverified Landmark",
+            slug="test-ekm-pending-landmark",
+            district=self.ekm_district,
+            category=cat,
+            short_description="Draft",
+            detailed_description="Draft details",
+            latitude=10.000000,
+            longitude=76.300000,
+            source_name="Manual Draft",
+        )
+        self.assertEqual(draft.verification_status, VerificationStatus.PENDING)
+
+    def test_03_ernakulam_filters_search_and_detail_page(self):
+        """3. Verify district page, API filters, search, autocomplete, and full detail views including permits/EXPIRED."""
+        list_res = self.client.get(reverse('destinations:ernakulam_list'))
+        self.assertEqual(list_res.status_code, 200)
+        self.assertContains(list_res, "Ernakulam")
+        self.assertContains(list_res, "Fort Kochi Beach")
+
+        # API district & category filtering
+        api_ekm = self.client.get(reverse('destinations:api_destinations_list'), {'district': 'ernakulam'})
+        self.assertEqual(api_ekm.status_code, 200)
+        self.assertEqual(api_ekm.json()['count'], 50)
+
+        api_beach = self.client.get(
+            reverse('destinations:api_destinations_list'),
+            {'district': 'ernakulam', 'category': 'beaches-and-coastal'},
+        )
+        self.assertEqual(api_beach.json()['count'], 5)
+
+        api_search = self.client.get(reverse('destinations:api_destinations_list'), {'q': 'Thattekad'})
+        self.assertEqual(api_search.status_code, 200)
+        thattekad_matches = [d for d in api_search.json()['destinations'] if 'Thattekad Bird Sanctuary' in d['name']]
+        self.assertEqual(len(thattekad_matches), 1)
+        self.assertIn('FOREST SANCTUARY PERMIT', thattekad_matches[0]['permit_requirements'])
+
+        auto_res = self.client.get(reverse('destinations:api_autocomplete'), {'q': 'Paradesi'})
+        self.assertEqual(auto_res.status_code, 200)
+        self.assertTrue(any('Paradesi' in s['name'] for s in auto_res.json()['results']))
+
+        # Detail page checks: VERIFIED heritage + permit, PENDING, EXPIRED
+        synagogue = Destination.objects.get(slug='paradesi-synagogue-jew-town')
+        det_res = self.client.get(synagogue.get_absolute_url())
+        self.assertEqual(det_res.status_code, 200)
+        self.assertContains(det_res, "Shabbat")
+        self.assertContains(det_res, "add_to_trip=1")
+        self.assertContains(det_res, "Oct")
+
+        kodanad = Destination.objects.get(slug='kodanad-elephant-kraal-historic')
+        kod_res = self.client.get(kodanad.get_absolute_url())
+        self.assertEqual(kod_res.status_code, 200)
+        self.assertContains(kod_res, "EXPIRED")
+        self.assertContains(kod_res, "Abhayaranyam")
+
+        kadambrayar = Destination.objects.get(slug='kadambrayar-ecotourism-village')
+        kad_res = self.client.get(kadambrayar.get_absolute_url())
+        self.assertEqual(kad_res.status_code, 200)
+        self.assertContains(kad_res, "PENDING")
+
+    def test_04_map_clusters_nearby_gps_routing_and_mobile_css(self):
+        """4. Verify Kerala map 336-place clusters, GPS nearby recommendations, routing proxy, and mobile responsiveness."""
+        map_res = self.client.get(reverse('destinations:kerala_map'))
+        self.assertEqual(map_res.status_code, 200)
+        self.assertContains(map_res, "336 Places")
+        self.assertContains(map_res, "drawerPermitBox")
+        self.assertContains(map_res, "@media (max-width: 991px)")
+
+        # Nearby GPS check from central Kochi (Marine Drive)
+        nearby = self.client.get(reverse('destinations:api_nearby_destinations'), {
+            'lat': '9.9785', 'lng': '76.2758', 'radius': '15', 'limit': '8'
+        })
+        self.assertEqual(nearby.status_code, 200)
+        names = [d['name'] for d in nearby.json()['destinations']]
+        self.assertIn("Marine Drive, Kochi", names)
+        self.assertIn("Mangalavanam Bird Sanctuary", names)
+
+        # Driving route check between Marine Drive and Fort Kochi
+        route = self.client.get(reverse('destinations:api_route_proxy'), {
+            'coordinates': '76.2758,9.9785;76.2399,9.9672', 'profile': 'driving'
+        })
+        self.assertEqual(route.status_code, 200)
+        self.assertEqual(route.json()['status'], 'success')
+        self.assertGreater(route.json()['distance_km'], 3.0)
+
+    def test_05_duplicate_prevention_idempotency_and_admin_management(self):
+        """5. Verify import idempotency, DB unique_together duplicate prevention, and Admin CRUD + map picker."""
+        from django.db import IntegrityError, transaction
+        call_command('import_ernakulam_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.ekm_district).count(), 50)
+
+        cat = Category.objects.first()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Destination.objects.create(
+                    name="Cherai Beach",
+                    slug="cherai-dup",
+                    district=self.ekm_district,
+                    category=cat,
+                    short_description="Duplicate",
+                    detailed_description="Duplicate",
+                    latitude=10.142270,
+                    longitude=76.178255,
+                    source_name="Test",
+                )
+
+        self.client.force_login(self.admin_user)
+        thattekad = Destination.objects.get(slug='thattekad-bird-sanctuary')
+        change_url = reverse('admin:destinations_destination_change', args=[thattekad.id])
+        change_res = self.client.get(change_url)
+        self.assertEqual(change_res.status_code, 200)
+        self.assertContains(change_res, "permit_requirements")
+        self.assertContains(change_res, "map_picker.js")
+
+        list_admin_res = self.client.get(reverse('admin:destinations_destination_changelist'), {'district__id__exact': self.ekm_district.id})
+        self.assertEqual(list_admin_res.status_code, 200)
+        self.assertContains(list_admin_res, "Thattekad")
+
+
+
 
 
 
