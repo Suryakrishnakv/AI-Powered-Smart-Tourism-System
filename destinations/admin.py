@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django import forms
+from django.utils import timezone
+from django.db.models import Count
 from .models import District, Category, Destination, DestinationImage, SavedTrip, SavedTripStop, DestinationReview
 from core.models import VerificationStatus
 
@@ -35,6 +37,37 @@ class MissingCoordinatesFilter(admin.SimpleListFilter):
         return queryset
 
 
+class DuplicateRecordsFilter(admin.SimpleListFilter):
+    title = 'Duplicate Detection'
+    parameter_name = 'duplicates'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('possible', 'Possible Duplicate Names / Coordinates'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'possible':
+            dup_names = (
+                Destination.objects.values('name')
+                .annotate(name_count=Count('id'))
+                .filter(name_count__gt=1)
+                .values_list('name', flat=True)
+            )
+            dup_coords = (
+                Destination.objects.values('latitude', 'longitude')
+                .annotate(coord_count=Count('id'))
+                .filter(coord_count__gt=1)
+            )
+            dup_coord_q = queryset.none()
+            for item in dup_coords:
+                dup_coord_q = dup_coord_q | queryset.filter(
+                    latitude=item['latitude'], longitude=item['longitude']
+                )
+            return queryset.filter(name__in=dup_names) | dup_coord_q
+        return queryset
+
+
 @admin.register(District)
 class DistrictAdmin(admin.ModelAdmin):
     list_display = ('name', 'headquarters', 'latitude', 'longitude', 'verification_status', 'last_verified_date')
@@ -57,10 +90,10 @@ class DestinationAdmin(admin.ModelAdmin):
         'latitude', 'longitude', 'verification_status', 'last_verified_date', 'is_featured'
     )
     search_fields = ('name', 'village_locality', 'full_address', 'source_name')
-    list_filter = ('district', 'category', 'verification_status', MissingCoordinatesFilter, 'is_featured')
+    list_filter = ('district', 'category', 'verification_status', MissingCoordinatesFilter, DuplicateRecordsFilter, 'is_featured')
     prepopulated_fields = {'slug': ('name',)}
     inlines = [DestinationImageInline, DestinationReviewInline]
-    actions = ['mark_as_verified', 'mark_as_pending', 'mark_as_expired']
+    actions = ['mark_as_verified', 'mark_as_pending', 'mark_as_expired', 'update_verification_date_today']
 
     fieldsets = (
         ("Basic Destination Information", {
@@ -84,7 +117,7 @@ class DestinationAdmin(admin.ModelAdmin):
             'fields': ('contact_info', 'official_website', 'official_email')
         }),
         ("Data Verification Provenance", {
-            'fields': ('source_name', 'source_url', 'verification_status', 'last_verified_date')
+            'fields': ('source_name', 'source_url', 'verification_status', 'last_verified_date', 'valid_until', 'verified_by')
         }),
     )
 
@@ -97,9 +130,13 @@ class DestinationAdmin(admin.ModelAdmin):
             'admin/js/map_picker.js',
         )
 
-    @admin.action(description="Mark selected destinations as VERIFIED")
+    @admin.action(description="Mark selected destinations as VERIFIED (set date to today)")
     def mark_as_verified(self, request, queryset):
-        queryset.update(verification_status=VerificationStatus.VERIFIED)
+        queryset.update(
+            verification_status=VerificationStatus.VERIFIED,
+            last_verified_date=timezone.now().date(),
+            verified_by=request.user,
+        )
 
     @admin.action(description="Mark selected destinations as PENDING verification")
     def mark_as_pending(self, request, queryset):
@@ -108,6 +145,10 @@ class DestinationAdmin(admin.ModelAdmin):
     @admin.action(description="Mark selected destinations as EXPIRED (Requires Re-verification)")
     def mark_as_expired(self, request, queryset):
         queryset.update(verification_status=VerificationStatus.EXPIRED)
+
+    @admin.action(description="Update Last Verified Date to Today")
+    def update_verification_date_today(self, request, queryset):
+        queryset.update(last_verified_date=timezone.now().date(), verified_by=request.user)
 
 
 @admin.register(DestinationReview)

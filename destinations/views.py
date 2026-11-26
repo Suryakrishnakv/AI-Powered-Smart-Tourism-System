@@ -68,8 +68,8 @@ def serialize_destination(d, user_lat=None, user_lng=None):
         'gallery': gallery_list,
         
         # Visitor & Tourist Information
-        'entry_fee': d.entry_fee or 'Not available / Check official desk',
-        'opening_hours': d.opening_hours or 'Not available / Daylight access',
+        'entry_fee': d.entry_fee or ('Not published / Check official desk' if d.verification_status in ['VERIFIED', 'LIVE'] else 'Unconfirmed (Pending Verification)'),
+        'opening_hours': d.opening_hours or ('Daylight access / Check official desk' if d.verification_status in ['VERIFIED', 'LIVE'] else 'Unconfirmed (Pending Verification)'),
         'weekly_closing_day': d.weekly_closing_day or 'None (Open all 7 days)',
         'expected_visit_duration': d.expected_visit_duration or '1 - 2 hours',
         'best_time_to_visit': d.best_time_to_visit or 'October to March',
@@ -88,9 +88,10 @@ def serialize_destination(d, user_lat=None, user_lng=None):
         
         # Provenance & Trust Tracking
         'verification_status': d.verification_status,
+        'is_confirmed': d.verification_status in ['VERIFIED', 'LIVE'],
         'source_name': d.source_name,
         'source_url': d.source_url or 'https://www.keralatourism.org/',
-        'last_verified_date': d.last_verified_date.strftime('%b %d, %Y') if d.last_verified_date else 'Verified',
+        'last_verified_date': d.last_verified_date.strftime('%b %d, %Y') if d.last_verified_date else 'Not yet verified',
         'updated_at': d.updated_at.strftime('%b %d, %Y'),
         'is_featured': d.is_featured,
         

@@ -238,7 +238,7 @@
                                     {{ destination.accessibility_info|default:"Partial accessibility; wheelchair access available at primary entrance gates." }}
                                 </p>
                             </div>
-                            <span class="badge bg-secondary">Verified</span>
+                            <span class="badge {{ destination.status_badge_class }}">{{ destination.verification_status }}</span>
                         </div>
                     </div>
                 </div>
@@ -291,7 +291,7 @@
                         {% endif %}
                         <li class="mb-2 d-flex justify-content-between">
                             <span class="text-muted">Last Verified Date:</span>
-                            <span class="text-dark">{{ destination.last_verified_date|date:"F d, Y"|default:"Verified" }}</span>
+                            <span class="text-dark">{{ destination.last_verified_date|date:"F d, Y"|default:"Pending Verification" }}</span>
                         </li>
                         <li class="mb-2 d-flex justify-content-between">
                             <span class="text-muted">Last Record Update:</span>

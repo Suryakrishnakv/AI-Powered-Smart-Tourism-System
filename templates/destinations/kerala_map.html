@@ -769,14 +769,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 3. Category Color Palette & Icon Mapping
     const categoryColors = {
-        'beaches': '#0284c7',       // Sky blue
-        'waterfalls': '#0d9488',    // Teal
-        'hill-stations': '#16a34a', // Emerald green
-        'dams-and-lakes': '#0891b2',// Cyan
-        'temples-and-heritage': '#d97706', // Amber
-        'wildlife': '#65a30d',      // Lime
-        'museums-and-culture': '#7c3aed', // Purple
-        'default': '#0b6e4f'        // Dark emerald
+        'beaches-and-coastal': '#0284c7',            // Sky blue
+        'waterfalls': '#0d9488',                     // Teal
+        'hill-stations-and-nature': '#16a34a',       // Emerald green
+        'dams-lakes-and-backwaters': '#0891b2',      // Cyan
+        'temples-and-religious': '#d97706',          // Amber
+        'wildlife-and-ecotourism': '#65a30d',        // Lime
+        'historical-places-and-museums': '#7c3aed',  // Purple
+        'parks-culture-and-entertainment': '#db2777',// Pink/Rose
+        'default': '#0b6e4f'                         // Dark emerald
     };
 
     function getCategoryColor(slug) {
@@ -973,8 +974,23 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('drawerAddress').textContent = dest.full_address || `${dest.name}, ${dest.district}, Kerala`;
         document.getElementById('drawerCoords').textContent = `${dest.lat.toFixed(5)}°N, ${dest.lng.toFixed(5)}°E`;
         
-        document.getElementById('drawerVerificationStatus').textContent = dest.verification_status || 'VERIFIED';
-        document.getElementById('drawerVerifiedDate').textContent = dest.last_verified_date ? `Verified: ${dest.last_verified_date}` : 'Verified';
+        const vStatus = dest.verification_status || 'PENDING';
+        const isConfirmed = (vStatus === 'VERIFIED' || vStatus === 'LIVE');
+        const vStatusElem = document.getElementById('drawerVerificationStatus');
+        const coordsStatusElem = document.getElementById('drawerCoordsStatus');
+        vStatusElem.textContent = isConfirmed ? vStatus : `${vStatus} (Unconfirmed)`;
+        vStatusElem.parentElement.className = isConfirmed ? 'text-success fw-bold' : (vStatus === 'EXPIRED' ? 'text-danger fw-bold' : 'text-warning fw-bold');
+        if (isConfirmed) {
+            coordsStatusElem.textContent = 'Verified GPS';
+            coordsStatusElem.className = 'badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25';
+        } else if (vStatus === 'EXPIRED') {
+            coordsStatusElem.textContent = 'Requires Re-verification';
+            coordsStatusElem.className = 'badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25';
+        } else {
+            coordsStatusElem.textContent = `${vStatus} Review`;
+            coordsStatusElem.className = 'badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25';
+        }
+        document.getElementById('drawerVerifiedDate').textContent = dest.last_verified_date && dest.last_verified_date !== 'Not yet verified' ? `Verified: ${dest.last_verified_date}` : 'Awaiting Verification';
         document.getElementById('drawerSource').textContent = dest.source_name || 'Official Government Tourism Records';
         document.getElementById('drawerUpdatedAt').textContent = dest.updated_at || 'Recent';
 
@@ -1217,13 +1233,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 applyFilters();
             },
             error => {
-                gpsPill.className = 'badge bg-secondary';
-                gpsPill.textContent = 'Location Set to Kerala';
-                console.warn("GPS error:", error.message);
-                const fallbackLat = 8.5241;
-                const fallbackLng = 76.9366;
-                userLocation = { lat: fallbackLat, lng: fallbackLng };
-                updateNearbyResults(fallbackLat, fallbackLng, 25);
+                gpsPill.className = 'badge bg-danger';
+                gpsPill.textContent = 'Location Permission Required';
+                userLocation = null;
+                console.warn("GPS permission denied or unavailable:", error.message);
+                const container = document.getElementById('nearbyResultsContainer');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="alert alert-warning small mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Location permission was not granted (${error.message}). Distance from your location is hidden until GPS permission is enabled.
+                        </div>
+                    `;
+                }
             },
             { enableHighAccuracy: true, timeout: 8000 }
         );

@@ -491,5 +491,233 @@ class PathanamthittaDestinationsTests(TestCase):
         self.assertIn("Adavi Eco-Tourism and Coracle Rafting Centre", names)
 
 
+class AlappuzhaDestinationsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+        call_command('import_alappuzha_destinations')
+
+    def setUp(self):
+        self.client = Client()
+        self.tvm_district = District.objects.get(slug='thiruvananthapuram')
+        self.kollam_district = District.objects.get(slug='kollam')
+        self.pta_district = District.objects.get(slug='pathanamthitta')
+        self.alpy_district = District.objects.get(slug='alappuzha')
+
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='alpy_admin', email='admin@smarttourism.local', password='AdminPass123!'
+        )
+
+    def test_01_alappuzha_has_50_destinations_and_all_previous_districts_unchanged(self):
+        """1. Verify Alappuzha has 50 verified destinations and TVM/Kollam/Pathanamthitta remain 50 each (Total: 200)."""
+        self.assertEqual(Destination.objects.filter(district=self.tvm_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.kollam_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.pta_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.alpy_district).count(), 50)
+        self.assertEqual(Destination.objects.count(), 200)
+
+    def test_02_out_of_district_attractions_excluded_from_alappuzha(self):
+        """2. Verify Kumarakom Bird Sanctuary (Kottayam) and Sree Vallabha Temple (Pathanamthitta) are excluded from Alappuzha."""
+        alpy_names = set(
+            Destination.objects.filter(district=self.alpy_district).values_list('name', flat=True)
+        )
+        self.assertNotIn("Kumarakom Bird Sanctuary", alpy_names)
+        self.assertNotIn("Sree Vallabha Temple", alpy_names)
+        self.assertNotIn("Sree Vallabha Temple, Thiruvalla", alpy_names)
+
+        # Verify Krishnapuram Palace is strictly inside Alappuzha now
+        self.assertIn("Krishnapuram Palace", alpy_names)
+        self.assertIn("Alappuzha Beach", alpy_names)
+        self.assertIn("Pathiramanal Island & Bird Sanctuary", alpy_names)
+        self.assertIn("Thanneermukkom Bund (Saltwater Barrier)", alpy_names)
+
+    def test_03_alappuzha_coordinates_and_verification_integrity(self):
+        """3. Verify GPS bounds within Alappuzha, verified images, attribution, and status provenance."""
+        for dest in Destination.objects.filter(district=self.alpy_district):
+            lat = float(dest.latitude)
+            lng = float(dest.longitude)
+            # Alappuzha spans ~9.08 to 9.88 N, 76.27 to 76.68 E
+            self.assertGreaterEqual(lat, 9.05, f"Latitude too low for {dest.name}: {lat}")
+            self.assertLessEqual(lat, 9.90, f"Latitude too high for {dest.name}: {lat}")
+            self.assertGreaterEqual(lng, 76.25, f"Longitude too low for {dest.name}: {lng}")
+            self.assertLessEqual(lng, 76.70, f"Longitude too high for {dest.name}: {lng}")
+            self.assertTrue(bool(dest.source_name), f"Missing source_name for {dest.name}")
+            self.assertTrue(bool(dest.main_image_url), f"Missing main_image_url for {dest.name}")
+            self.assertTrue(bool(dest.image_attribution), f"Missing image_attribution for {dest.name}")
+            self.assertEqual(dest.verification_status, VerificationStatus.VERIFIED)
+            self.assertIsNotNone(dest.last_verified_date)
+
+    def test_04_duplicate_prevention_constraint_and_idempotency(self):
+        """4. Verify unique constraint (name, district) prevents duplicates and import command is idempotent."""
+        from django.db import IntegrityError
+        call_command('import_alappuzha_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.alpy_district).count(), 50)
+
+        all_slugs = Destination.objects.values_list('slug', flat=True)
+        self.assertEqual(len(all_slugs), len(set(all_slugs)))
+
+        cat = Category.objects.first()
+        with self.assertRaises(IntegrityError):
+            Destination.objects.create(
+                name="Alappuzha Beach",
+                slug="alappuzha-beach-dup-test",
+                district=self.alpy_district,
+                category=cat,
+                short_description="Duplicate test",
+                detailed_description="Duplicate test",
+                latitude=9.4926,
+                longitude=76.3177,
+                source_name="Test",
+            )
+
+    def test_05_alappuzha_district_filter_search_and_detail_views(self):
+        """5. Verify Alappuzha district explore view, category filter, keyword search, and detail panel."""
+        list_url = reverse('destinations:alappuzha_list')
+        res = self.client.get(list_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Alappuzha Interactive Destination Map")
+        self.assertContains(res, "50 Verified Tourist Destinations")
+        self.assertContains(res, "Alappuzha Beach")
+        self.assertContains(res, "Krishnapuram Palace")
+
+        # Filter by category
+        res_cat = self.client.get(list_url, {'category': 'beaches-and-coastal'})
+        self.assertEqual(res_cat.status_code, 200)
+        self.assertContains(res_cat, "Marari Beach")
+
+        # Search query
+        res_search = self.client.get(list_url, {'q': 'Krishnapuram'})
+        self.assertEqual(res_search.status_code, 200)
+        self.assertContains(res_search, "Krishnapuram Palace")
+
+        # Detail view
+        palace = Destination.objects.get(slug='krishnapuram-palace')
+        res_detail = self.client.get(palace.get_absolute_url())
+        self.assertEqual(res_detail.status_code, 200)
+        self.assertContains(res_detail, "Gajendra Moksham")
+        self.assertContains(res_detail, "Official Data Verification Record")
+        self.assertContains(res_detail, "Visitor Guidelines & Tourist Advice")
+
+    def test_06_kerala_map_integration_mobile_layout_and_autocomplete(self):
+        """6. Verify interactive Kerala map includes Alappuzha filter, clusters, autocomplete, directions, and mobile CSS."""
+        map_url = reverse('destinations:kerala_map')
+        res = self.client.get(map_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "200 Places")
+        self.assertContains(res, "alappuzha")
+        self.assertContains(res, "@media (max-width: 991px)")
+        self.assertContains(res, "Location Permission Required")
+
+        # API district filter
+        api_res = self.client.get(reverse('destinations:api_destinations_list'), {'district': 'alappuzha'})
+        self.assertEqual(api_res.status_code, 200)
+        data = api_res.json()
+        self.assertEqual(data['count'], 50)
+
+        # Autocomplete search
+        auto_res = self.client.get(reverse('destinations:api_autocomplete'), {'q': 'Punnamada'})
+        self.assertEqual(auto_res.status_code, 200)
+        names = [r['name'] for r in auto_res.json()['results']]
+        self.assertIn("Punnamada Lake", names)
+
+    def test_07_pending_and_expired_data_never_marked_confirmed(self):
+        """7. Verify PENDING and EXPIRED records carry is_confirmed=False and do not render confirmed timestamps."""
+        cat = Category.objects.first()
+        pending_dest = Destination.objects.create(
+            name="Test Pending Spot Alappuzha",
+            slug="test-pending-spot-alappuzha",
+            district=self.alpy_district,
+            category=cat,
+            short_description="Pending verification spot",
+            detailed_description="Pending verification details",
+            latitude=9.5100,
+            longitude=76.3400,
+            source_name="Admin Submission",
+            verification_status=VerificationStatus.PENDING,
+        )
+        res = self.client.get(reverse('destinations:api_destinations_list'), {'q': 'Test Pending Spot'})
+        self.assertEqual(res.status_code, 200)
+        item = res.json()['destinations'][0]
+        self.assertEqual(item['verification_status'], 'PENDING')
+        self.assertFalse(item['is_confirmed'])
+        self.assertEqual(item['last_verified_date'], 'Not yet verified')
+        self.assertIn('Pending Verification', item['entry_fee'])
+
+        detail_res = self.client.get(pending_dest.get_absolute_url())
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertContains(detail_res, "PENDING")
+        self.assertContains(detail_res, "Pending Verification")
+
+    def test_08_admin_crud_filters_and_verification_actions(self):
+        """8. Verify Django Admin supports CRUD, map picker assets, missing GPS/duplicate filters, and verification actions."""
+        self.client.force_login(self.admin_user)
+        changelist_url = reverse('admin:destinations_destination_changelist')
+
+        # Changelist + Alappuzha filter
+        res = self.client.get(changelist_url, {'district__id__exact': self.alpy_district.id})
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Alappuzha Beach")
+
+        # Missing GPS & Duplicate Detection filters work cleanly
+        self.assertEqual(self.client.get(changelist_url, {'has_gps': 'missing'}).status_code, 200)
+        self.assertEqual(self.client.get(changelist_url, {'duplicates': 'possible'}).status_code, 200)
+
+        # Map picker JS included on add/change pages
+        add_res = self.client.get(reverse('admin:destinations_destination_add'))
+        self.assertEqual(add_res.status_code, 200)
+        self.assertContains(add_res, "map_picker.js")
+
+        # Admin create, edit, bulk verify action, and delete
+        cat = Category.objects.first()
+        create_data = {
+            'name': 'Admin Test Spot Alappuzha',
+            'slug': 'admin-test-spot-alappuzha',
+            'district': self.alpy_district.id,
+            'category': cat.id,
+            'short_description': 'Created via admin',
+            'detailed_description': 'Detailed description',
+            'village_locality': 'Alappuzha',
+            'latitude': '9.495000',
+            'longitude': '76.335000',
+            'source_name': 'DTPC Alappuzha',
+            'source_url': 'https://dtpcalappuzha.com/',
+            'verification_status': VerificationStatus.PENDING,
+            'gallery_images-TOTAL_FORMS': '0',
+            'gallery_images-INITIAL_FORMS': '0',
+            'gallery_images-MIN_NUM_FORMS': '0',
+            'gallery_images-MAX_NUM_FORMS': '1000',
+            'reviews-TOTAL_FORMS': '0',
+            'reviews-INITIAL_FORMS': '0',
+            'reviews-MIN_NUM_FORMS': '0',
+            'reviews-MAX_NUM_FORMS': '1000',
+        }
+        post_res = self.client.post(reverse('admin:destinations_destination_add'), data=create_data)
+        self.assertEqual(post_res.status_code, 302)
+        created_obj = Destination.objects.get(slug='admin-test-spot-alappuzha')
+        self.assertEqual(created_obj.verification_status, VerificationStatus.PENDING)
+
+        # Bulk action: mark_as_verified updates status and last_verified_date
+        action_res = self.client.post(changelist_url, {
+            'action': 'mark_as_verified',
+            '_selected_action': [str(created_obj.id)],
+        })
+        self.assertEqual(action_res.status_code, 302)
+        created_obj.refresh_from_db()
+        self.assertEqual(created_obj.verification_status, VerificationStatus.VERIFIED)
+        self.assertIsNotNone(created_obj.last_verified_date)
+
+        # Admin delete
+        del_res = self.client.post(
+            reverse('admin:destinations_destination_delete', args=[created_obj.id]),
+            {'post': 'yes'}
+        )
+        self.assertEqual(del_res.status_code, 302)
+        self.assertFalse(Destination.objects.filter(slug='admin-test-spot-alappuzha').exists())
+
+
+
 
 
