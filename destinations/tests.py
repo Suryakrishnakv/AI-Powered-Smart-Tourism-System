@@ -718,6 +718,194 @@ class AlappuzhaDestinationsTests(TestCase):
         self.assertFalse(Destination.objects.filter(slug='admin-test-spot-alappuzha').exists())
 
 
+class KottayamDestinationsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+        call_command('import_alappuzha_destinations')
+        call_command('import_kottayam_destinations')
+
+    def setUp(self):
+        self.client = Client()
+        self.tvm_district = District.objects.get(slug='thiruvananthapuram')
+        self.kollam_district = District.objects.get(slug='kollam')
+        self.pta_district = District.objects.get(slug='pathanamthitta')
+        self.alpy_district = District.objects.get(slug='alappuzha')
+        self.ktm_district = District.objects.get(slug='kottayam')
+
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='ktm_admin', email='ktm_admin@smarttourism.local', password='AdminPass123!'
+        )
+
+    def test_01_kottayam_counts_and_earlier_districts_preserved(self):
+        """1. Verify Kottayam has 43 audited records (42 VERIFIED, 1 PENDING) and earlier 200 records stay intact."""
+        self.assertEqual(Destination.objects.filter(district=self.tvm_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.kollam_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.pta_district).count(), 50)
+        self.assertEqual(Destination.objects.filter(district=self.alpy_district).count(), 50)
+
+        ktm_qs = Destination.objects.filter(district=self.ktm_district)
+        self.assertEqual(ktm_qs.count(), 43)
+        self.assertEqual(ktm_qs.filter(verification_status=VerificationStatus.VERIFIED).count(), 42)
+        self.assertEqual(ktm_qs.filter(verification_status=VerificationStatus.PENDING).count(), 1)
+        self.assertEqual(ktm_qs.filter(verification_status=VerificationStatus.EXPIRED).count(), 0)
+        self.assertEqual(Destination.objects.count(), 243)
+
+    def test_02_out_of_district_and_cross_district_duplicates_excluded(self):
+        """2. Verify Idukki attractions (Nadukani, Vagamon Pine Forest) & Alappuzha duplicates are excluded from Kottayam."""
+        ktm_names = set(
+            Destination.objects.filter(district=self.ktm_district).values_list('name', flat=True)
+        )
+        self.assertNotIn("Nadukani Pavilion", ktm_names)
+        self.assertNotIn("Vagamon Pine Forest", ktm_names)
+        self.assertNotIn("Pathiramanal Island", ktm_names)
+        self.assertNotIn("Pathiramanal Island & Bird Sanctuary", ktm_names)
+        self.assertNotIn("Thanneermukkom Bund", ktm_names)
+        self.assertNotIn("Kottayam District Tourism Centre", ktm_names)
+
+        # Verify Kottayam highlights exist
+        self.assertIn("Illikkal Kallu", ktm_names)
+        self.assertIn("Ilaveezhapoonchira", ktm_names)
+        self.assertIn("Kumarakom Bird Sanctuary", ktm_names)
+        self.assertIn("Ettumanoor Mahadeva Temple", ktm_names)
+        self.assertIn("Vaikom Mahadeva Temple", ktm_names)
+        self.assertIn("Bharananganam St. Mary's Forane Church & St. Alphonsa Shrine", ktm_names)
+
+    def test_03_kottayam_coordinates_images_and_pending_status_integrity(self):
+        """3. Verify coordinates inside Kottayam polygon bounds, real images, attribution, and Mozart Gallery PENDING status."""
+        for dest in Destination.objects.filter(district=self.ktm_district):
+            lat = float(dest.latitude)
+            lng = float(dest.longitude)
+            # Kottayam GeoJSON bounds: 9.4003..9.8573 N, 76.3657..76.9845 E
+            self.assertGreaterEqual(lat, 9.40, f"Latitude too low for {dest.name}: {lat}")
+            self.assertLessEqual(lat, 9.86, f"Latitude too high for {dest.name}: {lat}")
+            self.assertGreaterEqual(lng, 76.36, f"Longitude too low for {dest.name}: {lng}")
+            self.assertLessEqual(lng, 76.99, f"Longitude too high for {dest.name}: {lng}")
+            self.assertTrue(bool(dest.source_name), f"Missing source_name for {dest.name}")
+            self.assertTrue(bool(dest.main_image_url), f"Missing main_image_url for {dest.name}")
+            self.assertTrue(bool(dest.image_attribution), f"Missing image_attribution for {dest.name}")
+
+        mozart = Destination.objects.get(slug='mozart-art-gallery-ayemenem')
+        self.assertEqual(mozart.verification_status, VerificationStatus.PENDING)
+        self.assertIsNone(mozart.last_verified_date)
+
+        api_res = self.client.get(reverse('destinations:api_destinations_list'), {'q': 'Mozart'})
+        self.assertEqual(api_res.status_code, 200)
+        item = api_res.json()['destinations'][0]
+        self.assertEqual(item['verification_status'], 'PENDING')
+        self.assertFalse(item['is_confirmed'])
+        self.assertEqual(item['last_verified_date'], 'Not yet verified')
+
+    def test_04_kottayam_list_filter_search_and_detail_page_features(self):
+        """4. Verify Kottayam explore filter, category filter, search, detail page Best Season & Add to Trip option."""
+        list_url = reverse('destinations:kottayam_list')
+        res = self.client.get(list_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Kottayam Interactive Destination Map")
+        self.assertContains(res, "Illikkal Kallu")
+        self.assertContains(res, "Kumarakom Bird Sanctuary")
+
+        # Category filter
+        res_cat = self.client.get(list_url, {'category': 'waterfalls'})
+        self.assertEqual(res_cat.status_code, 200)
+        self.assertContains(res_cat, "Marmala Waterfalls")
+        self.assertContains(res_cat, "Kattikkayam Waterfalls")
+
+        # Search query
+        res_search = self.client.get(list_url, {'q': 'Ettumanoor'})
+        self.assertEqual(res_search.status_code, 200)
+        self.assertContains(res_search, "Ettumanoor Mahadeva Temple")
+
+        # Detail page completeness (Section 6)
+        illikkal = Destination.objects.get(slug='illikkal-kallu')
+        detail_res = self.client.get(illikkal.get_absolute_url())
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertContains(detail_res, "Best Season to Visit")
+        self.assertContains(detail_res, "Add to Trip")
+        self.assertContains(detail_res, "add_to_trip=1")
+        self.assertContains(detail_res, "Visitor Guidelines & Tourist Advice")
+        self.assertContains(detail_res, "Official Data Verification Record")
+        self.assertContains(detail_res, "Nearby Verified Attractions")
+
+    def test_05_map_integration_nearby_directions_and_mobile_responsiveness(self):
+        """5. Verify interactive Kerala map shows Kottayam markers, autocomplete, nearby API, directions, and mobile CSS."""
+        map_res = self.client.get(reverse('destinations:kerala_map'))
+        self.assertEqual(map_res.status_code, 200)
+        self.assertContains(map_res, "243 Places")
+        self.assertContains(map_res, "kottayam")
+        self.assertContains(map_res, "@media (max-width: 991px)")
+        self.assertContains(map_res, "add_to_trip")
+
+        # API district filter
+        api_ktm = self.client.get(reverse('destinations:api_destinations_list'), {'district': 'kottayam'})
+        self.assertEqual(api_ktm.status_code, 200)
+        self.assertEqual(api_ktm.json()['count'], 43)
+
+        # Autocomplete
+        auto = self.client.get(reverse('destinations:api_autocomplete'), {'q': 'Illikkal'})
+        self.assertEqual(auto.status_code, 200)
+        self.assertIn("Illikkal Kallu", [r['name'] for r in auto.json()['results']])
+
+        # Nearby attractions around Kottayam center (9.5915, 76.5221)
+        nearby = self.client.get(reverse('destinations:api_nearby_destinations'), {
+            'lat': '9.5915', 'lng': '76.5221', 'radius': '15', 'district': 'kottayam'
+        })
+        self.assertEqual(nearby.status_code, 200)
+        nearby_names = [d['name'] for d in nearby.json()['destinations']]
+        self.assertIn("Thirunakkara Mahadeva Temple", nearby_names)
+
+        # Directions proxy between Thirunakkara Temple & Kumarakom Bird Sanctuary
+        route = self.client.get(reverse('destinations:api_route_proxy'), {
+            'coordinates': '76.5189,9.5906;76.4226,9.6312', 'profile': 'driving'
+        })
+        self.assertEqual(route.status_code, 200)
+        self.assertEqual(route.json()['status'], 'success')
+        self.assertGreater(route.json()['distance_km'], 8.0)
+
+    def test_06_duplicate_prevention_idempotency_and_admin_crud(self):
+        """6. Verify duplicate prevention, command idempotency, and Admin CRUD + verification date update."""
+        from django.db import IntegrityError, transaction
+        call_command('import_kottayam_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.ktm_district).count(), 43)
+        self.assertEqual(Destination.objects.count(), 243)
+
+        # Duplicate constraint check inside an atomic savepoint
+        cat = Category.objects.first()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Destination.objects.create(
+                    name="Illikkal Kallu",
+                    slug="illikkal-kallu-dup",
+                    district=self.ktm_district,
+                    category=cat,
+                    short_description="Duplicate",
+                    detailed_description="Duplicate",
+                    latitude=9.7452,
+                    longitude=76.8118,
+                    source_name="Test",
+                )
+
+        # Admin CRUD & verification update action
+        self.client.force_login(self.admin_user)
+        changelist_url = reverse('admin:destinations_destination_changelist')
+        res = self.client.get(changelist_url, {'district__id__exact': self.ktm_district.id})
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Illikkal Kallu")
+
+        mozart = Destination.objects.get(slug='mozart-art-gallery-ayemenem')
+        action_res = self.client.post(changelist_url, {
+            'action': 'update_verification_date_today',
+            '_selected_action': [str(mozart.id)],
+        })
+        self.assertEqual(action_res.status_code, 302)
+        mozart.refresh_from_db()
+        self.assertIsNotNone(mozart.last_verified_date)
+
+
+
 
 
 

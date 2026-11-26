@@ -1601,13 +1601,19 @@ document.addEventListener('DOMContentLoaded', function () {
     populateMarkers(allDestinations);
     renderDestinationsList(allDestinations);
 
-    // Initial check for query param (e.g. ?place=kovalam-beach)
+    // Initial check for query param (e.g. ?place=kovalam-beach&add_to_trip=1)
     const urlParams = new URLSearchParams(window.location.search);
     const placeParam = urlParams.get('place');
+    const addToTripParam = urlParams.get('add_to_trip');
     if (placeParam) {
         const matched = allDestinations.find(d => d.slug === placeParam);
         if (matched) {
-            setTimeout(() => window.selectDestinationById(matched.id), 400);
+            setTimeout(() => {
+                window.selectDestinationById(matched.id);
+                if (addToTripParam === '1') {
+                    window.addToTrip(matched.id);
+                }
+            }, 400);
         }
     }
 });

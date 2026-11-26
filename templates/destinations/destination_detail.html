@@ -101,7 +101,7 @@
                 <span class="badge bg-success px-3 py-1 rounded-pill">
                     <i class="bi {{ destination.category.icon }} me-1"></i>{{ destination.category.name }}
                 </span>
-                <span class="badge bg-primary px-3 py-1 rounded-pill">
+                <span class="badge {{ destination.status_badge_class }} px-3 py-1 rounded-pill">
                     <i class="bi bi-patch-check-fill me-1"></i>Status: {{ destination.verification_status }}
                 </span>
                 <span class="badge bg-dark border border-secondary text-white-50">
@@ -120,6 +120,9 @@
             <div class="d-flex flex-wrap gap-2">
                 <a href="{% url 'destinations:kerala_map' %}?place={{ destination.slug }}" class="btn btn-warning btn-sm fw-semibold">
                     <i class="bi bi-map-fill me-1"></i>View on Kerala Interactive Map
+                </a>
+                <a href="{% url 'destinations:kerala_map' %}?place={{ destination.slug }}&add_to_trip=1" class="btn btn-success btn-sm fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i>Add to Trip
                 </a>
                 <a href="#visitor-info" class="btn btn-outline-light btn-sm">
                     <i class="bi bi-info-circle me-1"></i>Visitor Guidelines
@@ -188,6 +191,13 @@
                             <i class="bi bi-check2-circle text-success"></i>{{ act }}
                         </span>
                         {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if destination.best_time_to_visit %}
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-sun-fill text-warning me-1"></i>Best Season to Visit</h6>
+                        <p class="text-muted small mb-0">{{ destination.best_time_to_visit }}</p>
                     </div>
                     {% endif %}
 
