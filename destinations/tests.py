@@ -1693,6 +1693,222 @@ class PalakkadDestinationsTests(TestCase):
         self.assertContains(list_admin_res, "Silent Valley")
 
 
+class MalappuramDestinationsTests(TestCase):
+    """Comprehensive verification for Malappuram District (32 verified/audited records, 448 Kerala-wide total)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+        call_command('import_thiruvananthapuram_destinations')
+        call_command('import_kollam_destinations')
+        call_command('import_pathanamthitta_destinations')
+        call_command('import_alappuzha_destinations')
+        call_command('import_kottayam_destinations')
+        call_command('import_idukki_destinations')
+        call_command('import_ernakulam_destinations')
+        call_command('import_thrissur_destinations')
+        call_command('import_palakkad_destinations')
+        call_command('import_malappuram_destinations')
+        cls.mlp_district = District.objects.get(slug='malappuram')
+        cls.admin_user = User.objects.create_superuser(
+            username='mlp_admin', email='mlpadmin@smarttourism.local', password='StrongPass!123'
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_01_prior_districts_preserved_and_malappuram_counts_verified(self):
+        """1. Confirm all 416 previous district records stay untouched and Malappuram loads 32 audited places."""
+        self.assertEqual(Destination.objects.filter(district__slug='thiruvananthapuram').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='kollam').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='pathanamthitta').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='alappuzha').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='kottayam').count(), 43)
+        self.assertEqual(Destination.objects.filter(district__slug='idukki').count(), 43)
+        self.assertEqual(Destination.objects.filter(district__slug='ernakulam').count(), 50)
+        self.assertEqual(Destination.objects.filter(district__slug='thrissur').count(), 45)
+        self.assertEqual(Destination.objects.filter(district__slug='palakkad').count(), 35)
+
+        mlp_qs = Destination.objects.filter(district=self.mlp_district)
+        self.assertEqual(mlp_qs.count(), 32)
+        self.assertEqual(mlp_qs.filter(verification_status=VerificationStatus.VERIFIED).count(), 30)
+        self.assertEqual(mlp_qs.filter(verification_status=VerificationStatus.PENDING).count(), 1)
+        self.assertEqual(mlp_qs.filter(verification_status=VerificationStatus.EXPIRED).count(), 1)
+        self.assertEqual(Destination.objects.count(), 448)
+
+    def test_02_exclusions_consolidations_and_geojson_bounds(self):
+        """2. Verify out-of-district/private exclusions, consolidations, GeoJSON bounds, and PENDING default."""
+        import json
+        mlp_qs = Destination.objects.filter(district=self.mlp_district)
+        self.assertFalse(mlp_qs.filter(name__icontains='Mukurthi').exists())
+        self.assertFalse(mlp_qs.filter(name__icontains='Velliyamkallu').exists())
+        self.assertFalse(mlp_qs.filter(name__icontains='Kottakkal Beach').exists())
+        self.assertFalse(mlp_qs.filter(name__icontains='Poonkudil Mana').exists())
+
+        self.assertEqual(mlp_qs.filter(name__icontains='Kottakkunnu').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Nedumkayam').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains="Conolly's Plot").count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Teak Museum').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Adyanpara').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Keralamkundu').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Biyyam').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Padinjarekkara').count(), 1)
+        self.assertEqual(mlp_qs.filter(name__icontains='Kadalundi').count(), 1)
+        self.assertTrue(mlp_qs.filter(slug='moyinkutty-vaidyar-smarakam-kondotty').exists())
+        self.assertTrue(mlp_qs.filter(slug='aruvakkode-pottery-village-nilambur').exists())
+        self.assertTrue(mlp_qs.filter(slug='ponnani-lighthouse').exists())
+
+        with open('static/data/kerala_districts.geojson', 'r', encoding='utf-8') as f:
+            gj = json.load(f)
+        mlp_feat = [ft for ft in gj['features'] if ft['properties'].get('slug') == 'malappuram'][0]
+        geom = mlp_feat['geometry']
+        polys = [geom['coordinates']] if geom['type'] == 'Polygon' else geom['coordinates']
+
+        def point_in_ring(lon, lat, ring):
+            inside = False
+            j = len(ring) - 1
+            for i in range(len(ring)):
+                xi, yi = ring[i][0], ring[i][1]
+                xj, yj = ring[j][0], ring[j][1]
+                if ((yi > lat) != (yj > lat)) and (lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi):
+                    inside = not inside
+                j = i
+            return inside
+
+        for dest in mlp_qs:
+            lat, lon = float(dest.latitude), float(dest.longitude)
+            self.assertGreaterEqual(lat, 10.72)
+            self.assertLessEqual(lat, 11.45)
+            self.assertGreaterEqual(lon, 75.80)
+            self.assertLessEqual(lon, 76.48)
+            self.assertTrue(
+                any(point_in_ring(lon, lat, p[0]) for p in polys),
+                f"{dest.slug} ({lat}, {lon}) fell outside Malappuram GeoJSON polygon",
+            )
+
+        cat = Category.objects.first()
+        draft = Destination.objects.create(
+            name="Test Malappuram Unverified Draft",
+            slug="test-mlp-pending-draft",
+            district=self.mlp_district,
+            category=cat,
+            short_description="Draft",
+            detailed_description="Draft details",
+            latitude=11.050000,
+            longitude=76.070000,
+            source_name="Manual Draft",
+        )
+        self.assertEqual(draft.verification_status, VerificationStatus.PENDING)
+
+    def test_03_malappuram_filters_search_and_detail_warnings(self):
+        """3. Verify district page, API filters, search, autocomplete, and detail pages including bridge/PENDING/EXPIRED."""
+        list_res = self.client.get(reverse('destinations:malappuram_list'))
+        self.assertEqual(list_res.status_code, 200)
+        self.assertContains(list_res, "Malappuram")
+        self.assertContains(list_res, "Kodikuthimala")
+
+        api_mlp = self.client.get(reverse('destinations:api_destinations_list'), {'district': 'malappuram'})
+        self.assertEqual(api_mlp.status_code, 200)
+        self.assertEqual(api_mlp.json()['count'], 32)
+
+        api_falls = self.client.get(
+            reverse('destinations:api_destinations_list'),
+            {'district': 'malappuram', 'category': 'waterfalls'},
+        )
+        self.assertEqual(api_falls.json()['count'], 3)
+
+        api_wildlife = self.client.get(
+            reverse('destinations:api_destinations_list'),
+            {'district': 'malappuram', 'category': 'wildlife-and-ecotourism'},
+        )
+        self.assertEqual(api_wildlife.json()['count'], 5)
+
+        api_search = self.client.get(reverse('destinations:api_destinations_list'), {'q': 'Conolly'})
+        self.assertEqual(api_search.status_code, 200)
+        conolly_matches = [d for d in api_search.json()['destinations'] if "Conolly's Plot" in d['name']]
+        self.assertEqual(len(conolly_matches), 1)
+        self.assertIn('hanging footbridge', conolly_matches[0]['permit_requirements'])
+
+        auto_res = self.client.get(reverse('destinations:api_autocomplete'), {'q': 'Thunchan'})
+        self.assertEqual(auto_res.status_code, 200)
+        self.assertTrue(any('Thunchan' in s['name'] for s in auto_res.json()['results']))
+
+        nedumkayam = Destination.objects.get(slug='nedumkayam-rainforest-nilambur')
+        ned_res = self.client.get(nedumkayam.get_absolute_url())
+        self.assertEqual(ned_res.status_code, 200)
+        self.assertContains(ned_res, "Karulai")
+        self.assertContains(ned_res, "add_to_trip=1")
+        self.assertContains(ned_res, "VERIFIED")
+
+        avs = Destination.objects.get(slug='arya-vaidya-sala-herbal-garden-kottakkal')
+        avs_res = self.client.get(avs.get_absolute_url())
+        self.assertEqual(avs_res.status_code, 200)
+        self.assertContains(avs_res, "PENDING")
+
+        nila = Destination.objects.get(slug='ponnani-nila-heritage-museum')
+        nila_res = self.client.get(nila.get_absolute_url())
+        self.assertEqual(nila_res.status_code, 200)
+        self.assertContains(nila_res, "EXPIRED")
+        self.assertContains(nila_res, "maintenance")
+
+    def test_04_map_clusters_nearby_gps_routing_and_mobile_css(self):
+        """4. Verify Kerala map 448-place clusters, GPS nearby suggestions, routing proxy, and mobile CSS."""
+        map_res = self.client.get(reverse('destinations:kerala_map'))
+        self.assertEqual(map_res.status_code, 200)
+        self.assertContains(map_res, "448 Places")
+        self.assertContains(map_res, "drawerPermitBox")
+        self.assertContains(map_res, "@media (max-width: 991px)")
+
+        nearby = self.client.get(reverse('destinations:api_nearby_destinations'), {
+            'lat': '11.0480', 'lng': '76.0830', 'radius': '15', 'limit': '8'
+        })
+        self.assertEqual(nearby.status_code, 200)
+        names = [d['name'] for d in nearby.json()['destinations']]
+        self.assertIn("Kottakkunnu", names)
+        self.assertIn("Malappuram Valiya Juma Masjid (Shuhada Masjid)", names)
+
+        route = self.client.get(reverse('destinations:api_route_proxy'), {
+            'coordinates': '76.0830,11.0480;76.2505,11.3001', 'profile': 'driving'
+        })
+        self.assertEqual(route.status_code, 200)
+        self.assertEqual(route.json()['status'], 'success')
+        self.assertGreater(route.json()['distance_km'], 15.0)
+
+    def test_05_duplicate_prevention_idempotency_and_admin_management(self):
+        """5. Verify import idempotency, DB unique_together duplicate prevention, and Admin CRUD + map picker."""
+        from django.db import IntegrityError, transaction
+        call_command('import_malappuram_destinations')
+        self.assertEqual(Destination.objects.filter(district=self.mlp_district).count(), 32)
+
+        cat = Category.objects.first()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Destination.objects.create(
+                    name="Kottakkunnu",
+                    slug="kottakkunnu-dup",
+                    district=self.mlp_district,
+                    category=cat,
+                    short_description="Duplicate",
+                    detailed_description="Duplicate",
+                    latitude=11.048000,
+                    longitude=76.083000,
+                    source_name="Test",
+                )
+
+        self.client.force_login(self.admin_user)
+        conolly = Destination.objects.get(slug='conollys-plot-nilambur')
+        change_url = reverse('admin:destinations_destination_change', args=[conolly.id])
+        change_res = self.client.get(change_url)
+        self.assertEqual(change_res.status_code, 200)
+        self.assertContains(change_res, "permit_requirements")
+        self.assertContains(change_res, "map_picker.js")
+
+        list_admin_res = self.client.get(reverse('admin:destinations_destination_changelist'), {'district__id__exact': self.mlp_district.id})
+        self.assertEqual(list_admin_res.status_code, 200)
+        self.assertContains(list_admin_res, "Kodikuthimala")
+
+
+
 
 
 
