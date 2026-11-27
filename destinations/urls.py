@@ -23,6 +23,7 @@ urlpatterns = [
     path('thrissur/', views.district_destinations_view, {'district_slug': 'thrissur'}, name='thrissur_list'),
     path('palakkad/', views.district_destinations_view, {'district_slug': 'palakkad'}, name='palakkad_list'),
     path('malappuram/', views.district_destinations_view, {'district_slug': 'malappuram'}, name='malappuram_list'),
+    path('kozhikode/', views.district_destinations_view, {'district_slug': 'kozhikode'}, name='kozhikode_list'),
     path('<slug:district_slug>/', views.district_destinations_view, name='district_list'),
     path('<slug:district_slug>/<slug:slug>/', views.destination_detail_view, name='destination_detail'),
 ]
